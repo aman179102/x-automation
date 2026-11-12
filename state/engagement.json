@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "replies": [
+    {
+      "reply_tweet_id": "2120820870025449592",
+      "target_tweet_id": "1757800097314955610",
+      "target_author": "alexxubyte",
+      "reply_text": "While HTTP/2 multiplexing cuts latency, long-lived TCP connections complicate traditional L4 load balancing. Integrating an L7 proxy like Envoy is usually necessary for true request-level distribution.",
+      "replied_at": "2026-11-12T10:07:53.308368+00:00"
+    }
+  ],
+  "last_replied_at": "2026-11-12T10:07:53.308368+00:00"
+}

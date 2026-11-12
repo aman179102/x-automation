@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "seen_urls": [
+    "https://deepmind.google/blog/introducing-alphaproof-code"
+  ],
+  "posts": [
+    {
+      "tweet_id": "2120812122901000353",
+      "title": "Introducing AlphaProof Code: a breakthrough in verifying complex software at depth",
+      "url": "https://deepmind.google/blog/introducing-alphaproof-code",
+      "category": "ai",
+      "posted_at": "2026-11-12T09:33:45.227717+00:00",
+      "text": "Google DeepMind's AlphaProof Code agents wrote 3 million lines of Lean proofs to verify Signal's core encryption.\n\nSource: Google DeepMind\nhttps://deepmind.google/blog/introducing-alphaproof-code\n\n#AI #MachineLearning",
+      "media_path": "/home/devaman/Videos/x-automation/output/test_brand_card.jpg"
+    }
+  ],
+  "last_posted_at": "2026-11-12T09:33:45.227717+00:00"
+}

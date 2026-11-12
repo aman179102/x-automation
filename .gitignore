@@ -5,7 +5,9 @@ __pycache__/
 *.so
 .env
 output/
-state/
+state/*
+!state/history.json
+!state/engagement.json
 .pytest_cache/
 .coverage
 htmlcov/
