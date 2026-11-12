@@ -1,7 +1,8 @@
 {
   "version": 1,
   "seen_urls": [
-    "https://deepmind.google/blog/introducing-alphaproof-code"
+    "https://deepmind.google/blog/introducing-alphaproof-code",
+    "https://huggingface.co/blog/qvac/botpsy"
   ],
   "posts": [
     {
@@ -12,7 +13,16 @@
       "posted_at": "2026-11-12T09:33:45.227717+00:00",
       "text": "Google DeepMind's AlphaProof Code agents wrote 3 million lines of Lean proofs to verify Signal's core encryption.\n\nSource: Google DeepMind\nhttps://deepmind.google/blog/introducing-alphaproof-code\n\n#AI #MachineLearning",
       "media_path": "/home/devaman/Videos/x-automation/output/test_brand_card.jpg"
+    },
+    {
+      "tweet_id": "2120903447084200005",
+      "title": "BotPsy: On-Device Personal Assistant with a Sub-Billion-Parameter Agentic Language Model",
+      "url": "https://huggingface.co/blog/qvac/botpsy",
+      "category": "ai",
+      "posted_at": "2026-11-12T15:36:01.306382+00:00",
+      "text": "Run agentic AI directly on your device. BotPsy introduces a sub-billion-parameter language model designed for local personal assistant tasks.\n\nSource: Hugging Face (huggingface.co)\nhttps://huggingface.co/blog/qvac/botpsy\n\n#AI #MachineLearning",
+      "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1794497752.jpg"
     }
   ],
-  "last_posted_at": "2026-11-12T09:33:45.227717+00:00"
+  "last_posted_at": "2026-11-12T15:36:01.306382+00:00"
 }
