@@ -21,7 +21,14 @@
       "target_author": "Hi_Mrinal",
       "reply_text": "Most complexity comes from trying to enforce strict linearizability where eventual consistency would suffice, trading simple idempotent retries for massive consensus overhead and tail latency.",
       "replied_at": "2026-11-12T19:04:28.515950+00:00"
+    },
+    {
+      "reply_tweet_id": "2120984890162491702",
+      "target_tweet_id": "2092441063348936729",
+      "target_author": "CodeWithSravya",
+      "reply_text": "While these fundamentals cover application logic, production backends require understanding data serialization overhead, write amplification, and managing tail latency under load.",
+      "replied_at": "2026-11-12T20:59:38.666790+00:00"
     }
   ],
-  "last_replied_at": "2026-11-12T19:04:28.515950+00:00"
+  "last_replied_at": "2026-11-12T20:59:38.666790+00:00"
 }
