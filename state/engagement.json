@@ -35,7 +35,14 @@
       "target_author": "RaulJuncoV",
       "reply_text": "True; skipping straight to sharding without mastering single-node I/O bottlenecks and memory mapping guarantees tail latency regressions.",
       "replied_at": "2026-11-12T21:55:15.324017+00:00"
+    },
+    {
+      "reply_tweet_id": "2121013173599773114",
+      "target_tweet_id": "2051943057285902799",
+      "target_author": "Aditya_181105",
+      "reply_text": "Add distributed consensus and failure detection to that list, particularly handling split-brain scenarios during network partitions.",
+      "replied_at": "2026-11-12T22:52:01.955708+00:00"
     }
   ],
-  "last_replied_at": "2026-11-12T21:55:15.324017+00:00"
+  "last_replied_at": "2026-11-12T22:52:01.955708+00:00"
 }
