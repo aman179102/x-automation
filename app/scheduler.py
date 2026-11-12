@@ -57,10 +57,7 @@ def run_cycle(settings: Settings, live: bool = False, force: bool = False) -> bo
 
     # Publish live to Twitter
     client = TwitterClient(settings)
-    with open(img_path, "rb") as f:
-        img_bytes = f.read()
-
-    media_id = client.upload_media(img_bytes, alt_text=draft.alt_text)
+    media_id = client.upload_media(img_path, alt_text=draft.alt_text)
     result = client.post_tweet(text=tweet_text, media_ids=[media_id])
 
     # Record state

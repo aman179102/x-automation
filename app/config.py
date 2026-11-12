@@ -59,6 +59,10 @@ class Settings:
     access_token_secret: str = ""
     bearer_token: str = ""
 
+    # 100% Free Web Session Authentication (Zero API Fees)
+    auth_token: str = ""
+    ct0: str = ""
+
     # Personal Branding
     author_name: str = "Aman Kumar"
     author_handle: str = "@aman179102"
@@ -133,12 +137,17 @@ def load_settings(overrides: dict[str, object] | None = None) -> Settings:
     daily_cap = int(overrides.get("daily_post_cap") or int(os.getenv("DAILY_POST_CAP", "4")))
     min_spacing = int(overrides.get("min_spacing_minutes") or int(os.getenv("MIN_SPACING_MINUTES", "120")))
 
+    auth_token = str(overrides.get("auth_token") or get_str("AUTH_TOKEN", ("TWITTER_AUTH_TOKEN", "X_AUTH_TOKEN")))
+    ct0 = str(overrides.get("ct0") or get_str("CT0", ("TWITTER_CT0", "X_CT0")))
+
     return Settings(
         api_key=api_key,
         api_secret=api_secret,
         access_token=access_token,
         access_token_secret=access_token_secret,
         bearer_token=bearer_token,
+        auth_token=auth_token,
+        ct0=ct0,
         author_name=author_name,
         author_handle=author_handle,
         author_title=author_title,

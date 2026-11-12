@@ -154,11 +154,8 @@ def main() -> int:
     print("🚀 Publishing to X (Twitter)...")
     try:
         client = TwitterClient(settings)
-        with open(img_path, "rb") as f:
-            img_bytes = f.read()
-
         print("📤 Uploading media...")
-        media_id = client.upload_media(img_bytes, alt_text=draft.alt_text)
+        media_id = client.upload_media(img_path, alt_text=draft.alt_text)
 
         print("🐦 Posting tweet...")
         result = client.post_tweet(text=tweet_text, media_ids=[media_id])

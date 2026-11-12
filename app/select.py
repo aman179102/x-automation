@@ -11,29 +11,45 @@ from app.state import is_seen
 logger = logging.getLogger(__name__)
 
 TECH_BOOST_TERMS = {
-    "zero-day": 2.0,
-    "cve-": 1.8,
-    "vulnerability": 1.5,
-    "release": 1.3,
-    "v1.": 1.3,
-    "v2.": 1.3,
-    "open source": 1.4,
-    "architecture": 1.5,
-    "benchmark": 1.4,
-    "compiler": 1.3,
-    "concurrency": 1.4,
-    "distributed": 1.5,
+    "distributed": 1.8,
+    "architecture": 1.7,
+    "alphaproof": 1.7,
+    "verification": 1.7,
+    "agentic": 1.6,
+    "on-device": 1.6,
+    "compiler": 1.6,
+    "storage": 1.6,
+    "concurrency": 1.5,
+    "open source": 1.5,
+    "benchmark": 1.5,
+    "database": 1.5,
+    "performance": 1.5,
     "llm": 1.4,
-    "model": 1.2,
-    "performance": 1.3,
-    "kernel": 1.4,
-    "security": 1.2,
+    "golang": 1.4,
+    "runtime": 1.4,
+    "model": 1.3,
+    "release": 1.3,
+}
+
+PR_FLUFF_TERMS = {
+    "caregivers", "business of law", "elevates travel", "customer story",
+    "partnering with", "advisory", "marketing",
 }
 
 
 def score_story(story: Story) -> float:
     base = story.item.score
     text = f"{story.title} {story.summary}".lower()
+
+    # De-prioritize security/vulnerabilities
+    if story.category == "security":
+        base *= 0.50
+
+    # De-prioritize non-technical PR stories
+    for term in PR_FLUFF_TERMS:
+        if term in text:
+            base *= 0.40
+            break
 
     # Keyword bonuses
     multiplier = 1.0

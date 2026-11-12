@@ -15,7 +15,7 @@ BLOCKED_TERMS = {
     "parliament", "war", "gaza", "israel", "ukraine", "russia", "military",
     "murder", "shooting", "porn", "nsfw", "casino", "gambling",
     "bitcoin price", "crypto pump", "token sale", "memecoin", "airdrop",
-    "celebrity", "bollywood", "hollywood", "cricket", "football",
+    "celebrity", "bollywood", "hollywood", "cricket", "football", "affair", "scandal",
 }
 
 

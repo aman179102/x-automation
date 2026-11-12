@@ -30,16 +30,16 @@ class FeedSpec:
 
 
 FEEDS: tuple[FeedSpec, ...] = (
-    FeedSpec("OpenAI", "https://openai.com/news/rss.xml", "ai", 1.0, 8),
     FeedSpec("Google DeepMind", "https://deepmind.google/blog/rss.xml", "ai", 1.0, 8),
-    FeedSpec("The Hacker News", "https://feeds.feedburner.com/TheHackersNews", "security", 0.95, 10),
+    FeedSpec("OpenAI", "https://openai.com/news/rss.xml", "ai", 1.0, 8),
+    FeedSpec("Hugging Face", "https://huggingface.co/blog/feed.xml", "ai", 0.95, 8),
     FeedSpec("GitHub Blog", "https://github.blog/feed/", "dev", 0.95, 8),
-    FeedSpec("Go Blog", "https://go.dev/blog/feed.atom", "dev", 0.9, 6),
+    FeedSpec("Go Blog", "https://go.dev/blog/feed.atom", "dev", 0.95, 6),
     FeedSpec("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index", "tech", 0.9, 10),
-    FeedSpec("Cloudflare", "https://blog.cloudflare.com/rss/", "security", 0.9, 8),
-    FeedSpec("The Verge", "https://www.theverge.com/rss/index.xml", "bigtech", 0.85, 10),
-    FeedSpec("Hugging Face", "https://huggingface.co/blog/feed.xml", "ai", 0.9, 8),
-    FeedSpec("TechCrunch", "https://techcrunch.com/feed/", "startups", 0.8, 10),
+    FeedSpec("Cloudflare", "https://blog.cloudflare.com/rss/", "dev", 0.85, 8),
+    FeedSpec("The Verge", "https://www.theverge.com/rss/index.xml", "bigtech", 0.8, 10),
+    FeedSpec("TechCrunch", "https://techcrunch.com/feed/", "startups", 0.75, 10),
+    FeedSpec("The Hacker News", "https://feeds.feedburner.com/TheHackersNews", "security", 0.4, 5),
 )
 
 # Aman Kumar's verified open-source projects for authority & SEO showcases
