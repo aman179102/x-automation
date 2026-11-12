@@ -2,10 +2,16 @@ name: Engage on X (Smart Comments)
 
 on:
   schedule:
-    # 3 times a day (UTC): 04:30, 10:00, 15:00 (approx 10:00, 15:30, 20:30 IST)
-    - cron: "30 4 * * *"
-    - cron: "0 10 * * *"
-    - cron: "0 15 * * *"
+    # Every 2 hours during active hours (09:00 AM - 11:00 PM IST)
+    # UTC: 03:30, 05:30, 07:30, 09:30, 11:30, 13:30, 15:30, 17:30
+    - cron: "30 3 * * *"   # 09:00 AM IST
+    - cron: "30 5 * * *"   # 11:00 AM IST
+    - cron: "30 7 * * *"   # 01:00 PM IST
+    - cron: "30 9 * * *"   # 03:00 PM IST
+    - cron: "30 11 * * *"  # 05:00 PM IST
+    - cron: "30 13 * * *"  # 07:00 PM IST
+    - cron: "30 15 * * *"  # 09:00 PM IST
+    - cron: "30 17 * * *"  # 11:00 PM IST
   workflow_dispatch:
     inputs:
       force:
