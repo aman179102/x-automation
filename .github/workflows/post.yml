@@ -1,0 +1,100 @@
+name: Post to X (Twitter)
+
+on:
+  schedule:
+    # 4 times a day (UTC): 03:00, 08:00, 13:00, 17:00 (approx 08:30, 13:30, 18:30, 22:30 IST)
+    - cron: "0 3 * * *"
+    - cron: "0 8 * * *"
+    - cron: "0 13 * * *"
+    - cron: "0 17 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        required: true
+        default: "live"
+        type: choice
+        options:
+          - live
+          - dry-run
+      force:
+        description: "Bypass posting window"
+        required: false
+        default: false
+        type: boolean
+      showcase:
+        description: "Force personal project showcase post"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: x-tech-news
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run automation cycle
+        env:
+          AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
+          CT0: ${{ secrets.CT0 }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODE="${{ inputs.mode }}"
+            FORCE="${{ inputs.force }}"
+            SHOWCASE="${{ inputs.showcase }}"
+          else
+            MODE="live"
+            FORCE="false"
+            SHOWCASE="false"
+          fi
+
+          ARGS=""
+          if [ "$MODE" = "live" ]; then
+            ARGS="--live"
+          else
+            ARGS="--dry-run"
+          fi
+          if [ "$FORCE" = "true" ]; then
+            ARGS="$ARGS --force"
+          fi
+          if [ "$SHOWCASE" = "true" ]; then
+            ARGS="$ARGS --showcase"
+          fi
+
+          python -m app.main $ARGS
+
+      - name: Commit state history
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/history.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: record posted tweet history [skip ci]"
+            git push
+          fi
