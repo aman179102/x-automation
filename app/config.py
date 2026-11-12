@@ -23,11 +23,9 @@ def env_bool(name: str, default: bool) -> bool:
 
 
 DEFAULT_GEMINI_MODELS = (
-    "gemini-3.8-flash",
     "gemini-3.5-flash",
     "gemini-3.5-flash-lite",
-    "gemini-flash-latest",
-    "gemini-3.6-flash",
+    "gemini-3.8-flash",
 )
 DEFAULT_GROQ_MODELS = (
     "openai/gpt-oss-120b",
@@ -36,9 +34,6 @@ DEFAULT_GROQ_MODELS = (
 )
 DEFAULT_OPENROUTER_MODELS = (
     "openrouter/free",
-    "google/gemma-4-26b-a4b-it:free",
-    "thinkingmachines/inkling-small:free",
-    "cohere/north-mini-code:free",
 )
 
 

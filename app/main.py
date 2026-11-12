@@ -38,6 +38,8 @@ def _cli_parser() -> argparse.ArgumentParser:
     p.add_argument("--plan", action="store_true", help="List ranked story candidates and virality scores")
     p.add_argument("--showcase", action="store_true", help="Force post an open-source project showcase")
     p.add_argument("--test-image", action="store_true", help="Test AI/stock image generation with brand card overlay")
+    p.add_argument("--engagement-plan", action="store_true", help="Find relevant developer tweets & draft smart replies")
+    p.add_argument("--engagement-live", action="store_true", help="Publish a smart reply to a top tech tweet")
     p.add_argument("--force", action="store_true", help="Bypass posting windows and daily limits")
     p.add_argument("--daemon", action="store_true", help="Run continuously in background mode")
     return p
@@ -90,6 +92,67 @@ def main() -> int:
             print(f"    Source: {story.primary_source.name} | {story.item.url}")
         print("-" * 70)
         return 0
+
+    # 4. Engagement modes (Smart Commenting)
+    if args.engagement_plan or args.engagement_live:
+        import asyncio
+        from datetime import datetime, timezone
+        from app.engagement import (
+            can_reply_now,
+            draft_reply,
+            find_candidates,
+            load_engagement_state,
+            post_live_reply,
+            save_engagement_state,
+        )
+
+        eng_state = load_engagement_state(settings.state_dir)
+        ok, reason = can_reply_now(eng_state, settings)
+
+        if not ok and not args.force and args.engagement_live:
+            print(f"⏸️ Engagement skipped: {reason}")
+            return 0
+
+        print("\n🔍 Scanning X for hot engineering discussions...")
+        candidates = asyncio.run(find_candidates(settings, eng_state, limit=3))
+        if not candidates:
+            print("ℹ️ No eligible candidate tweets found right now.")
+            return 0
+
+        print(f"Found {len(candidates)} high-potential tweets for technical engagement:\n" + "=" * 70)
+        for idx, c in enumerate(candidates, 1):
+            print(f"\n[{idx}] Tweet by @{c.author} ({c.likes} likes) | ID: {c.tweet_id}")
+            print(f"    Post: \"{c.text[:130]}...\"")
+            reply, reason = draft_reply(c.text, settings)
+            c.suggested_reply = reply
+            c.reasoning = reason
+            print(f"    💬 Drafted Reply: \"{reply}\"")
+            print(f"    💡 Strategic Angle: {reason}")
+        print("\n" + "=" * 70)
+
+        if not args.engagement_live:
+            print("💡 [ENGAGEMENT PLAN COMPLETE] Run with '--engagement-live' to post the top reply.\n")
+            return 0
+
+        target = candidates[0]
+        print(f"\n🚀 Posting technical reply to @{target.author}'s tweet ({target.tweet_id})...")
+        try:
+            reply_id = asyncio.run(post_live_reply(target, target.suggested_reply, settings))
+            now_iso = datetime.now(timezone.utc).isoformat()
+            eng_state.setdefault("replies", []).append({
+                "reply_tweet_id": reply_id,
+                "target_tweet_id": target.tweet_id,
+                "target_author": target.author,
+                "reply_text": target.suggested_reply,
+                "replied_at": now_iso,
+            })
+            eng_state["last_replied_at"] = now_iso
+            save_engagement_state(settings.state_dir, eng_state)
+            print(f"🎉 Successfully posted reply! URL: https://x.com/{settings.author_handle.strip('@')}/status/{reply_id}\n")
+            return 0
+        except Exception as exc:
+            print(f"❌ Failed to post reply: {exc}\n")
+            return 1
 
     # 4. Continuous daemon mode
     if args.daemon:
