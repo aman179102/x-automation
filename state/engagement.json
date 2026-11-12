@@ -14,7 +14,14 @@
       "target_author": "htmx_org",
       "reply_text": "Fielding's emphasis on HATEOAS rarely survives high-throughput microservices, where teams trade hypermedia discovery for fixed gRPC schemas to minimize payload bloat and tail latency.",
       "replied_at": "2026-11-12T10:27:33.794817+00:00"
+    },
+    {
+      "reply_tweet_id": "2120955907030897009",
+      "target_tweet_id": "2119718658280919084",
+      "target_author": "Hi_Mrinal",
+      "reply_text": "Most complexity comes from trying to enforce strict linearizability where eventual consistency would suffice, trading simple idempotent retries for massive consensus overhead and tail latency.",
+      "replied_at": "2026-11-12T19:04:28.515950+00:00"
     }
   ],
-  "last_replied_at": "2026-11-12T10:27:33.794817+00:00"
+  "last_replied_at": "2026-11-12T19:04:28.515950+00:00"
 }
