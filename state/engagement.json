@@ -63,7 +63,14 @@
       "target_author": "Dhanush_Nehru",
       "reply_text": "While roadmaps focus on syntax, production systems fail at the boundaries: handling network partitions, tail latency, and write amplification under backpressure.",
       "replied_at": "2026-11-13T15:36:40.233558+00:00"
+    },
+    {
+      "reply_tweet_id": "2121292143281230020",
+      "target_tweet_id": "2089959021834817578",
+      "target_author": "e_opore",
+      "reply_text": "Moving from monoliths to microservices trades localized memory efficiency and simple transactions for network serialization overhead and tail latency across RPC boundaries.",
+      "replied_at": "2026-11-13T17:20:33.508080+00:00"
     }
   ],
-  "last_replied_at": "2026-11-13T15:36:40.233558+00:00"
+  "last_replied_at": "2026-11-13T17:20:33.508080+00:00"
 }
