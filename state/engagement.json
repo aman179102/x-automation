@@ -70,7 +70,14 @@
       "target_author": "e_opore",
       "reply_text": "Moving from monoliths to microservices trades localized memory efficiency and simple transactions for network serialization overhead and tail latency across RPC boundaries.",
       "replied_at": "2026-11-13T17:20:33.508080+00:00"
+    },
+    {
+      "reply_tweet_id": "2121312659794759819",
+      "target_tweet_id": "2119997895126691982",
+      "target_author": "arikaran_io",
+      "reply_text": "Swapping in-memory calls for RPCs trades deterministic stack traces for network tail latency and distributed tracing overhead. Microservices amplify architectural flaws unless domain boundaries are rock solid.",
+      "replied_at": "2026-11-13T18:42:05.101770+00:00"
     }
   ],
-  "last_replied_at": "2026-11-13T17:20:33.508080+00:00"
+  "last_replied_at": "2026-11-13T18:42:05.101770+00:00"
 }
