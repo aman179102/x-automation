@@ -84,7 +84,14 @@
       "target_author": "goyalshaliniuk",
       "reply_text": "Every additional boundary introduces serialization overhead and network tail latency. Starting with a modular monolith delays that operational tax until scale strictly demands it.",
       "replied_at": "2026-11-13T20:35:55.877816+00:00"
+    },
+    {
+      "reply_tweet_id": "2121355183770771501",
+      "target_tweet_id": "2120066644353613841",
+      "target_author": "MansiCodez",
+      "reply_text": "Understanding connection pooling, TLS handshake overhead, and keep-alive semantics at scale is crucial—misconfigurations there often drive tail latency spikes far more than basic protocol selection.",
+      "replied_at": "2026-11-13T21:31:03.521006+00:00"
     }
   ],
-  "last_replied_at": "2026-11-13T20:35:55.877816+00:00"
+  "last_replied_at": "2026-11-13T21:31:03.521006+00:00"
 }
