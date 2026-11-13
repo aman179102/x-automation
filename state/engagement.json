@@ -56,7 +56,14 @@
       "target_author": "OjasSharma276",
       "reply_text": "True, but mastering the underlying network failure modes and handling split-brain scenarios matters far more than just citing the CAP theorem.",
       "replied_at": "2026-11-13T13:17:45.788019+00:00"
+    },
+    {
+      "reply_tweet_id": "2121265998997434602",
+      "target_tweet_id": "2119860170897621142",
+      "target_author": "Dhanush_Nehru",
+      "reply_text": "While roadmaps focus on syntax, production systems fail at the boundaries: handling network partitions, tail latency, and write amplification under backpressure.",
+      "replied_at": "2026-11-13T15:36:40.233558+00:00"
     }
   ],
-  "last_replied_at": "2026-11-13T13:17:45.788019+00:00"
+  "last_replied_at": "2026-11-13T15:36:40.233558+00:00"
 }
