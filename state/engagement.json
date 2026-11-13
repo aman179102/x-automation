@@ -49,7 +49,14 @@
       "target_author": "divyansh_1729",
       "reply_text": "Skipping transport layer internals like TCP slow-start and HOL blocking makes high-throughput systems design impossible to reason about.",
       "replied_at": "2026-11-13T11:23:28.439927+00:00"
+    },
+    {
+      "reply_tweet_id": "2121231041855680779",
+      "target_tweet_id": "2117205619107356735",
+      "target_author": "OjasSharma276",
+      "reply_text": "True, but mastering the underlying network failure modes and handling split-brain scenarios matters far more than just citing the CAP theorem.",
+      "replied_at": "2026-11-13T13:17:45.788019+00:00"
     }
   ],
-  "last_replied_at": "2026-11-13T11:23:28.439927+00:00"
+  "last_replied_at": "2026-11-13T13:17:45.788019+00:00"
 }
