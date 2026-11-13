@@ -3,7 +3,8 @@
   "seen_urls": [
     "https://deepmind.google/blog/introducing-alphaproof-code",
     "https://huggingface.co/blog/qvac/botpsy",
-    "https://github.blog/news-insights/company-news/github-availability-report-october-2026"
+    "https://github.blog/news-insights/company-news/github-availability-report-october-2026",
+    "https://blog.cloudflare.com/spend-management"
   ],
   "posts": [
     {
@@ -32,7 +33,16 @@
       "posted_at": "2026-11-13T10:48:50.075060+00:00",
       "text": "Developers faced performance dips across GitHub services as the platform logged 8 separate degradation incidents in October 2026.\n\nSource: GitHub Blog (github.blog)\nhttps://github.blog/news-insights/company-news/github-availability-report-october-2026\n\n#SoftwareEngineering #DevCommunity",
       "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1794566923.jpg"
+    },
+    {
+      "tweet_id": "2121271053255168249",
+      "title": "Introducing Spend Management: Spending limits and alerts for Cloudflare",
+      "url": "https://blog.cloudflare.com/spend-management",
+      "category": "dev",
+      "posted_at": "2026-11-13T15:56:45.336098+00:00",
+      "text": "Cloudflare added opt-in spending caps for Workers and Durable Objects. Engineers can now set strict spending limits and alerts to prevent unexpected cloud bills.\n\nSource: Cloudflare (blog.cloudflare.com)\nhttps://blog.cloudflare.com/spend-management\n\n#SoftwareEngineering #DevCommunity",
+      "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1794585399.jpg"
     }
   ],
-  "last_posted_at": "2026-11-13T10:48:50.075060+00:00"
+  "last_posted_at": "2026-11-13T15:56:45.336098+00:00"
 }
