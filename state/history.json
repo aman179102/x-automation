@@ -2,7 +2,8 @@
   "version": 1,
   "seen_urls": [
     "https://deepmind.google/blog/introducing-alphaproof-code",
-    "https://huggingface.co/blog/qvac/botpsy"
+    "https://huggingface.co/blog/qvac/botpsy",
+    "https://github.blog/news-insights/company-news/github-availability-report-october-2026"
   ],
   "posts": [
     {
@@ -22,7 +23,16 @@
       "posted_at": "2026-11-12T15:36:01.306382+00:00",
       "text": "Run agentic AI directly on your device. BotPsy introduces a sub-billion-parameter language model designed for local personal assistant tasks.\n\nSource: Hugging Face (huggingface.co)\nhttps://huggingface.co/blog/qvac/botpsy\n\n#AI #MachineLearning",
       "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1794497752.jpg"
+    },
+    {
+      "tweet_id": "2121193561966395424",
+      "title": "GitHub availability report: October 2026",
+      "url": "https://github.blog/news-insights/company-news/github-availability-report-october-2026",
+      "category": "dev",
+      "posted_at": "2026-11-13T10:48:50.075060+00:00",
+      "text": "Developers faced performance dips across GitHub services as the platform logged 8 separate degradation incidents in October 2026.\n\nSource: GitHub Blog (github.blog)\nhttps://github.blog/news-insights/company-news/github-availability-report-october-2026\n\n#SoftwareEngineering #DevCommunity",
+      "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1794566923.jpg"
     }
   ],
-  "last_posted_at": "2026-11-12T15:36:01.306382+00:00"
+  "last_posted_at": "2026-11-13T10:48:50.075060+00:00"
 }
