@@ -77,7 +77,14 @@
       "target_author": "arikaran_io",
       "reply_text": "Swapping in-memory calls for RPCs trades deterministic stack traces for network tail latency and distributed tracing overhead. Microservices amplify architectural flaws unless domain boundaries are rock solid.",
       "replied_at": "2026-11-13T18:42:05.101770+00:00"
+    },
+    {
+      "reply_tweet_id": "2121341310389105001",
+      "target_tweet_id": "2119029600676417762",
+      "target_author": "goyalshaliniuk",
+      "reply_text": "Every additional boundary introduces serialization overhead and network tail latency. Starting with a modular monolith delays that operational tax until scale strictly demands it.",
+      "replied_at": "2026-11-13T20:35:55.877816+00:00"
     }
   ],
-  "last_replied_at": "2026-11-13T18:42:05.101770+00:00"
+  "last_replied_at": "2026-11-13T20:35:55.877816+00:00"
 }
