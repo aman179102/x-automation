@@ -1,17 +1,8 @@
 name: Engage on X (Smart Comments)
 
 on:
-  schedule:
-    # Every 2 hours during active hours (09:00 AM - 11:00 PM IST)
-    # UTC: 03:30, 05:30, 07:30, 09:30, 11:30, 13:30, 15:30, 17:30
-    - cron: "30 3 * * *"   # 09:00 AM IST
-    - cron: "30 5 * * *"   # 11:00 AM IST
-    - cron: "30 7 * * *"   # 01:00 PM IST
-    - cron: "30 9 * * *"   # 03:00 PM IST
-    - cron: "30 11 * * *"  # 05:00 PM IST
-    - cron: "30 13 * * *"  # 07:00 PM IST
-    - cron: "30 15 * * *"  # 09:00 PM IST
-    - cron: "30 17 * * *"  # 11:00 PM IST
+  # Temporarily paused scheduled cron to prevent cloud datacenter IP flagging
+  # Run manually via workflow_dispatch when desired
   workflow_dispatch:
     inputs:
       force:
