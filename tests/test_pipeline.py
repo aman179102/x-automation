@@ -221,7 +221,7 @@ class TestSecondPassCorrectness(unittest.TestCase):
         )
         self.assertIn("inline_keyboard", kb)
         intent_btn = kb["inline_keyboard"][0][0]
-        self.assertIn("twitter.com/intent/tweet", intent_btn["url"])
+        self.assertIn("x.com/intent/post", intent_btn["url"])
         self.assertIn("Reed-Solomon", intent_btn["url"])
 
         # Test caption formatting stays under 1024 characters

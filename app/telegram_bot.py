@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import json
 import logging
+import re
 import urllib.parse
 from pathlib import Path
 from typing import Optional
@@ -24,14 +25,23 @@ def build_telegram_keyboard(
 ) -> dict:
     """
     Builds the inline keyboard containing the 1-Tap mobile web intent URL.
-    When tapped on Android, it opens the official X app with the tweet pre-filled.
+    Uses modern https://x.com/intent/post with explicit &hashtags= parameter separation
+    so mobile browsers and Twitter app do not truncate at the '#' fragment.
     """
-    encoded_text = urllib.parse.quote(tweet_text)
-    intent_url = f"https://twitter.com/intent/tweet?text={encoded_text}"
+    hashtags = re.findall(r"#(\w+)", tweet_text)
+    clean_text = re.sub(r"#\w+", "", tweet_text).strip()
+
+    params: dict[str, str] = {}
+    if clean_text:
+        params["text"] = clean_text
+    if hashtags:
+        params["hashtags"] = ",".join(hashtags)
+
+    intent_url = f"https://x.com/intent/post?{urllib.parse.urlencode(params)}"
 
     keyboard_rows = [
         [
-            {"text": "🚀 1-Tap Post on X (Mobile)", "url": intent_url}
+            {"text": "🚀 1-Tap Post on X (Mobile App)", "url": intent_url}
         ]
     ]
 
