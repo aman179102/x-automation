@@ -1,111 +1,19 @@
 {
-  "version": 1,
   "replies": [
     {
-      "reply_tweet_id": "2120820870025449592",
-      "target_tweet_id": "1757800097314955610",
-      "target_author": "alexxubyte",
-      "reply_text": "While HTTP/2 multiplexing cuts latency, long-lived TCP connections complicate traditional L4 load balancing. Integrating an L7 proxy like Envoy is usually necessary for true request-level distribution.",
-      "replied_at": "2026-11-12T10:07:53.308368+00:00"
-    },
-    {
-      "reply_tweet_id": "2120825821699162348",
-      "target_tweet_id": "1891851015621574780",
-      "target_author": "htmx_org",
-      "reply_text": "Fielding's emphasis on HATEOAS rarely survives high-throughput microservices, where teams trade hypermedia discovery for fixed gRPC schemas to minimize payload bloat and tail latency.",
-      "replied_at": "2026-11-12T10:27:33.794817+00:00"
-    },
-    {
-      "reply_tweet_id": "2120955907030897009",
-      "target_tweet_id": "2119718658280919084",
-      "target_author": "Hi_Mrinal",
-      "reply_text": "Most complexity comes from trying to enforce strict linearizability where eventual consistency would suffice, trading simple idempotent retries for massive consensus overhead and tail latency.",
-      "replied_at": "2026-11-12T19:04:28.515950+00:00"
-    },
-    {
-      "reply_tweet_id": "2120984890162491702",
-      "target_tweet_id": "2092441063348936729",
-      "target_author": "CodeWithSravya",
-      "reply_text": "While these fundamentals cover application logic, production backends require understanding data serialization overhead, write amplification, and managing tail latency under load.",
-      "replied_at": "2026-11-12T20:59:38.666790+00:00"
-    },
-    {
-      "reply_tweet_id": "2120998885141180866",
-      "target_tweet_id": "1980243241783197925",
-      "target_author": "RaulJuncoV",
-      "reply_text": "True; skipping straight to sharding without mastering single-node I/O bottlenecks and memory mapping guarantees tail latency regressions.",
-      "replied_at": "2026-11-12T21:55:15.324017+00:00"
-    },
-    {
-      "reply_tweet_id": "2121013173599773114",
-      "target_tweet_id": "2051943057285902799",
-      "target_author": "Aditya_181105",
-      "reply_text": "Add distributed consensus and failure detection to that list, particularly handling split-brain scenarios during network partitions.",
-      "replied_at": "2026-11-12T22:52:01.955708+00:00"
-    },
-    {
-      "reply_tweet_id": "2121202280133492932",
+      "reply_tweet_id": "telegram_intent",
       "target_tweet_id": "2120011070081302689",
       "target_author": "divyansh_1729",
-      "reply_text": "Skipping transport layer internals like TCP slow-start and HOL blocking makes high-throughput systems design impossible to reason about.",
-      "replied_at": "2026-11-13T11:23:28.439927+00:00"
+      "reply_text": "Chunk deduplication before erasure coding cuts disk overhead.",
+      "replied_at": "2026-11-14T08:51:54.500243+00:00"
     },
     {
-      "reply_tweet_id": "2121231041855680779",
-      "target_tweet_id": "2117205619107356735",
-      "target_author": "OjasSharma276",
-      "reply_text": "True, but mastering the underlying network failure modes and handling split-brain scenarios matters far more than just citing the CAP theorem.",
-      "replied_at": "2026-11-13T13:17:45.788019+00:00"
-    },
-    {
-      "reply_tweet_id": "2121265998997434602",
-      "target_tweet_id": "2119860170897621142",
-      "target_author": "Dhanush_Nehru",
-      "reply_text": "While roadmaps focus on syntax, production systems fail at the boundaries: handling network partitions, tail latency, and write amplification under backpressure.",
-      "replied_at": "2026-11-13T15:36:40.233558+00:00"
-    },
-    {
-      "reply_tweet_id": "2121292143281230020",
-      "target_tweet_id": "2089959021834817578",
-      "target_author": "e_opore",
-      "reply_text": "Moving from monoliths to microservices trades localized memory efficiency and simple transactions for network serialization overhead and tail latency across RPC boundaries.",
-      "replied_at": "2026-11-13T17:20:33.508080+00:00"
-    },
-    {
-      "reply_tweet_id": "2121312659794759819",
-      "target_tweet_id": "2119997895126691982",
-      "target_author": "arikaran_io",
-      "reply_text": "Swapping in-memory calls for RPCs trades deterministic stack traces for network tail latency and distributed tracing overhead. Microservices amplify architectural flaws unless domain boundaries are rock solid.",
-      "replied_at": "2026-11-13T18:42:05.101770+00:00"
-    },
-    {
-      "reply_tweet_id": "2121341310389105001",
-      "target_tweet_id": "2119029600676417762",
-      "target_author": "goyalshaliniuk",
-      "reply_text": "Every additional boundary introduces serialization overhead and network tail latency. Starting with a modular monolith delays that operational tax until scale strictly demands it.",
-      "replied_at": "2026-11-13T20:35:55.877816+00:00"
-    },
-    {
-      "reply_tweet_id": "2121355183770771501",
-      "target_tweet_id": "2120066644353613841",
-      "target_author": "MansiCodez",
-      "reply_text": "Understanding connection pooling, TLS handshake overhead, and keep-alive semantics at scale is crucial—misconfigurations there often drive tail latency spikes far more than basic protocol selection.",
-      "replied_at": "2026-11-13T21:31:03.521006+00:00"
-    },
-    {
-      "reply_tweet_id": "2121374657270141039",
-      "target_tweet_id": "2119974345904992306",
-      "target_author": "examaddaorg",
-      "reply_text": "Bridging single-node memory and concurrency concepts to distributed systems requires an early focus on non-blocking I/O models, serialization costs, and tail latency trade-offs.",
-      "replied_at": "2026-11-13T22:48:26.334095+00:00"
-    },
-    {
-      "reply_tweet_id": "2121496361489355205",
+      "reply_tweet_id": "telegram_intent",
       "target_tweet_id": "2121071588867235907",
       "target_author": "SaurabhDub28465",
-      "reply_text": "True mastery of the fundamentals shows up when handling partial failures in distributed state. Always design your core services around idempotent writes from day one.",
-      "replied_at": "2026-11-14T06:52:03.001847+00:00"
+      "reply_text": "True production hardening begins when you move past topology to tackle distributed consensus, backpressure limits, and schema evolution safely.",
+      "replied_at": "2026-11-14T08:52:11.118132+00:00"
     }
   ],
-  "last_replied_at": "2026-11-14T06:52:03.001847+00:00"
+  "last_replied_at": "2026-11-14T08:52:11.118132+00:00"
 }

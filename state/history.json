@@ -4,7 +4,9 @@
     "https://deepmind.google/blog/introducing-alphaproof-code",
     "https://huggingface.co/blog/qvac/botpsy",
     "https://github.blog/news-insights/company-news/github-availability-report-october-2026",
-    "https://blog.cloudflare.com/spend-management"
+    "https://blog.cloudflare.com/spend-management",
+    "https://github.com/aman179102",
+    "https://github.com/aman179102/distributed-file-storage-service"
   ],
   "posts": [
     {
@@ -42,7 +44,29 @@
       "posted_at": "2026-11-13T15:56:45.336098+00:00",
       "text": "Cloudflare added opt-in spending caps for Workers and Durable Objects. Engineers can now set strict spending limits and alerts to prevent unexpected cloud bills.\n\nSource: Cloudflare (blog.cloudflare.com)\nhttps://blog.cloudflare.com/spend-management\n\n#SoftwareEngineering #DevCommunity",
       "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1794585399.jpg"
+    },
+    {
+      "tweet_id": "telegram_dispatch",
+      "title": "LSM-Trees vs B+ Trees: The Real Write Amplification Trade-off",
+      "url": "https://github.com/aman179102",
+      "category": "database",
+      "format_kind": "deep_dive",
+      "quality_score": 9.3,
+      "posted_at": "2026-11-14T08:10:16.937100+00:00",
+      "text": "LSM-trees turn random writes into sequential MemTable appends, trading write latency for background compaction overhead and read amplification.\n\n#DatabaseInternals #SystemDesign",
+      "media_path": "/home/devaman/Videos/x-automation/output/tweet_1794643814.jpg"
+    },
+    {
+      "tweet_id": "telegram_dispatch",
+      "title": "Distributed File Storage Service in Go",
+      "url": "https://github.com/aman179102/distributed-file-storage-service",
+      "category": "distributed",
+      "format_kind": "showcase",
+      "quality_score": 9.2,
+      "posted_at": "2026-11-14T08:18:28.353717+00:00",
+      "text": "Built a Go file store using 4+2 Reed-Solomon erasure coding. Cut storage overhead to 1.5x (vs 3x replication) while safely surviving 2 disk failures.\n\nRepo: https://github.com/aman179102/distributed-file-storage-service\n\n#Golang #StorageSystems",
+      "media_path": "/home/devaman/Videos/x-automation/output/tweet_1794644305.jpg"
     }
   ],
-  "last_posted_at": "2026-11-13T15:56:45.336098+00:00"
+  "last_posted_at": "2026-11-14T08:18:28.353717+00:00"
 }

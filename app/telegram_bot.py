@@ -318,6 +318,195 @@ def trigger_telegram_post(
     return False
 
 
+def _send_telegram_text(chat_id: str, bot_token: str, html_text: str) -> bool:
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            resp = client.post(
+                f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": html_text,
+                    "parse_mode": "HTML",
+                },
+            )
+            return resp.status_code == 200
+    except Exception:
+        return False
+
+
+def _send_comment_card(
+    chat_id: str,
+    bot_token: str,
+    tweet_id: str,
+    author: str,
+    tweet_text: str,
+    likes: int,
+    reply_text: str,
+    reason: str,
+    eng_state: dict,
+    settings: Settings,
+) -> bool:
+    from datetime import datetime, timezone
+    from app.engagement import save_engagement_state
+
+    # Modern X intent URL for direct reply
+    params = {
+        "in_reply_to": tweet_id,
+        "text": reply_text,
+    }
+    intent_url = f"https://x.com/intent/post?{urllib.parse.urlencode(params)}"
+    orig_url = f"https://x.com/{author}/status/{tweet_id}"
+
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "💬 1-Tap Reply on X (Mobile App)", "url": intent_url}
+            ],
+            [
+                {"text": "🌐 View Original Tweet", "url": orig_url}
+            ]
+        ]
+    }
+
+    escaped_author = html.escape(author)
+    display_tweet = tweet_text[:280] + "..." if len(tweet_text) > 280 else tweet_text
+    escaped_tweet = html.escape(display_tweet)
+    escaped_reply = html.escape(reply_text)
+    escaped_reason = html.escape(reason)
+
+    message = (
+        f"🎯 <b>TOP TECH DISCUSSION TARGET</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>Author:</b> @{escaped_author} ({likes} ❤️)\n"
+        f"📝 <b>Original Tweet:</b>\n"
+        f"<i>\"{escaped_tweet}\"</i>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"💡 <b>AI DRAFTED SMART COMMENT:</b>\n"
+        f"<code>{escaped_reply}</code>\n\n"
+        f"🎯 <b>Architectural Nuance:</b>\n"
+        f"<i>{escaped_reason}</i>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📲 <b>1-Tap Posting:</b>\n"
+        f"Niche <b>[💬 1-Tap Reply on X]</b> par tap karein.\n"
+        f"Aapke phone ka official X app @{escaped_author} ke tweet par reply composer ke sath khulega, aur comment pre-filled hoga. "
+        f"Bas <b>'Reply'</b> daba dein (0% ban risk)!"
+    )
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    eng_state.setdefault("replies", []).append({
+        "reply_tweet_id": "telegram_intent",
+        "target_tweet_id": tweet_id,
+        "target_author": author,
+        "reply_text": reply_text,
+        "replied_at": now_iso,
+    })
+    eng_state["last_replied_at"] = now_iso
+    save_engagement_state(settings.state_dir, eng_state)
+
+    try:
+        with httpx.Client(timeout=20.0) as client:
+            resp = client.post(
+                f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": message,
+                    "parse_mode": "HTML",
+                    "reply_markup": json.dumps(keyboard),
+                    "disable_web_page_preview": True,
+                },
+            )
+            return resp.status_code == 200
+    except Exception as exc:
+        logger.error("Failed to send comment recommendation to Telegram: %s", exc)
+        return False
+
+
+def trigger_telegram_comment(settings: Settings, target_chat_id: Optional[str] = None) -> bool:
+    """
+    Finds top relevant engineering discussion tweets and dispatches a high-IQ
+    smart comment recommendation to Telegram with a 1-tap mobile reply button.
+    """
+    from app.engagement import (
+        find_engagement_candidates,
+        draft_reply,
+        validate_reply_quality,
+        load_engagement_state,
+    )
+
+    chat_id = target_chat_id or settings.telegram_chat_id.strip()
+    bot_token = settings.telegram_bot_token.strip()
+    if not bot_token or not chat_id:
+        logger.warning("Telegram bot credentials not configured for comment dispatch.")
+        return False
+
+    eng_state = load_engagement_state(settings.state_dir)
+    candidates = []
+    try:
+        candidates = find_engagement_candidates(settings)
+    except Exception as exc:
+        logger.warning("find_engagement_candidates error: %s", exc)
+
+    # Fallback to satellite search opportunities if regular candidates empty
+    if not candidates:
+        try:
+            import asyncio
+            from app.satellite import find_satellite_opportunities
+            opps = asyncio.run(find_satellite_opportunities(settings))
+            for o in opps:
+                reply, reason = draft_reply(o.text, settings, author=o.author)
+                if reply:
+                    return _send_comment_card(
+                        chat_id=chat_id,
+                        bot_token=bot_token,
+                        tweet_id=o.tweet_id,
+                        author=o.author,
+                        tweet_text=o.text,
+                        likes=o.likes,
+                        reply_text=reply,
+                        reason=reason,
+                        eng_state=eng_state,
+                        settings=settings,
+                    )
+        except Exception as exc:
+            logger.warning("satellite fallback error in trigger_telegram_comment: %s", exc)
+
+    if not candidates:
+        _send_telegram_text(
+            chat_id,
+            bot_token,
+            "ℹ️ <b>Abhi koi nayi high-signal engineering discussion nahi mili.</b>\nKuch der baad dubara <b>/cmt</b> try karein!",
+        )
+        return False
+
+    for c in candidates:
+        reply, reason = draft_reply(c.text, settings, author=c.author)
+        if not reply:
+            continue
+        valid, _ = validate_reply_quality(c, reply, eng_state)
+        if not valid:
+            continue
+
+        return _send_comment_card(
+            chat_id=chat_id,
+            bot_token=bot_token,
+            tweet_id=c.tweet_id,
+            author=c.author,
+            tweet_text=c.text,
+            likes=c.likes,
+            reply_text=reply,
+            reason=reason,
+            eng_state=eng_state,
+            settings=settings,
+        )
+
+    _send_telegram_text(
+        chat_id,
+        bot_token,
+        "⚠️ <i>Discussions mili par quality validator ne draft filter kar diya. Thodi der baad dubara /cmt try karein!</i>",
+    )
+    return False
+
+
 def run_telegram_listener(settings: Settings) -> None:
     """
     Runs a continuous Telegram polling listener so Aman can generate drafts
@@ -336,6 +525,7 @@ def run_telegram_listener(settings: Settings) -> None:
     print("   • /showcase   - Feature personal open-source project")
     print("   • /deepdive   - Systems architecture deep dive")
     print("   • /discussion - High-signal developer discussion")
+    print("   • /cmt        - Find top tech discussion & get 1-Tap smart comment")
     print("   • /ping       - Check bot status")
     print("\n   Listening for incoming messages... (Press Ctrl+C to stop)\n")
 
@@ -379,8 +569,9 @@ def run_telegram_listener(settings: Settings) -> None:
                             "• <b>/showcase</b> - Feature your projects (Storage, Analytics, PodVoice)\n"
                             "• <b>/deepdive</b> - Systems & Architecture deep dive\n"
                             "• <b>/discussion</b> - Engineering discussion question\n"
+                            "• <b>/cmt</b> - Find top tech discussion & get 1-Tap smart comment\n"
                             "• <b>/ping</b> - Check connection\n\n"
-                            "⚡ Every post arrives with a 1-Tap button to publish from your phone with 0% ban risk!"
+                            "⚡ Every post & comment arrives with a 1-Tap button to publish from your phone with 0% ban risk!"
                         )
                         client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
                             "chat_id": chat_id,
@@ -390,8 +581,15 @@ def run_telegram_listener(settings: Settings) -> None:
                     elif text == "/ping":
                         client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
                             "chat_id": chat_id,
-                            "text": "🟢 Co-Pilot is online, healthy, and ready!",
+                            "text": "🟢 Co-Pilot is online, healthy, and ready on Render 24/7!",
                         })
+                    elif text in ("/cmt", "/comment", "/reply", "/engage"):
+                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
+                            "chat_id": chat_id,
+                            "text": "🔍 <i>Scanning X for trending engineering discussions & drafting high-IQ smart reply...</i>",
+                            "parse_mode": "HTML",
+                        })
+                        trigger_telegram_comment(settings, target_chat_id=chat_id)
                     elif text in ("/new", "/draft", "/post"):
                         client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
                             "chat_id": chat_id,

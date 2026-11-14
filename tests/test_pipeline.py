@@ -253,6 +253,39 @@ class TestSecondPassCorrectness(unittest.TestCase):
         self.assertIn("distributed-file-storage-service", reply)
         self.assertLessEqual(len(reply), 280)
 
+    # 8. Telegram 1-Tap Comment Intent Test
+    @patch("app.telegram_bot.httpx.Client")
+    def test_telegram_comment_dispatch_intent_url(self, mock_client_cls):
+        """Telegram comment card must construct valid in_reply_to intent URL."""
+        from app.telegram_bot import _send_comment_card
+
+        mock_client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_client.__enter__.return_value.post.return_value = mock_resp
+        mock_client_cls.return_value = mock_client
+
+        state = {"replies": []}
+        ok = _send_comment_card(
+            chat_id="5197618511",
+            bot_token="test_token",
+            tweet_id="2120011070081302689",
+            author="divyansh_1729",
+            tweet_text="SYSTEM DESIGN ROADMAP: Distributed Systems",
+            likes=1760,
+            reply_text="Chunk deduplication before erasure coding cuts disk overhead.",
+            reason="Architecture reference",
+            eng_state=state,
+            settings=self.settings,
+        )
+        self.assertTrue(ok)
+        self.assertTrue(mock_client.__enter__.return_value.post.called)
+        sent_payload = mock_client.__enter__.return_value.post.call_args[1]["json"]
+        self.assertIn("reply_markup", sent_payload)
+        markup = sent_payload["reply_markup"]
+        self.assertIn("in_reply_to=2120011070081302689", markup)
+        self.assertIn("x.com/intent/post", markup)
+
 
 if __name__ == "__main__":
     unittest.main()

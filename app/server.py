@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from app.config import Settings, load_settings
-from app.telegram_bot import run_telegram_listener, trigger_telegram_post
+from app.telegram_bot import run_telegram_listener, trigger_telegram_comment, trigger_telegram_post
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,6 +56,14 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             resp = {"status": "dispatched" if ok else "failed", "format": fmt}
+            self.wfile.write(json.dumps(resp).encode("utf-8"))
+        elif parsed.path in ("/trigger_comment", "/trigger-comment"):
+            logger.info("Triggering Telegram comment recommendation via HTTP request...")
+            ok = trigger_telegram_comment(self.settings)
+            self.send_response(200 if ok else 500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            resp = {"status": "dispatched" if ok else "failed", "type": "comment"}
             self.wfile.write(json.dumps(resp).encode("utf-8"))
         else:
             self.send_response(404)

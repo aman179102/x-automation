@@ -40,6 +40,7 @@ def _cli_parser() -> argparse.ArgumentParser:
     p.add_argument("--check-account", action="store_true", help="Verify Twitter credentials and account details")
     p.add_argument("--test-telegram", action="store_true", help="Send a test ping to verify Telegram Bot configuration")
     p.add_argument("--telegram-bot", action="store_true", help="Run interactive Telegram bot listener (/new, /showcase, etc.)")
+    p.add_argument("--telegram-comment", action="store_true", help="Find discussion and send 1-Tap comment draft to Telegram")
     p.add_argument("--plan", action="store_true", help="List ranked candidates across diverse formats with scores")
     p.add_argument("--showcase", action="store_true", help="Force post an open-source project showcase")
     p.add_argument("--deep-dive", action="store_true", help="Force post an engineering deep dive")
@@ -87,6 +88,13 @@ def main() -> int:
         from app.telegram_bot import run_telegram_listener
         run_telegram_listener(settings)
         return 0
+
+    # Telegram 1-Tap Comment Dispatch mode
+    if getattr(args, "telegram_comment", False):
+        from app.telegram_bot import trigger_telegram_comment
+        print("\n🔍 Finding technical discussion & dispatching 1-Tap comment to Telegram...")
+        ok = trigger_telegram_comment(settings)
+        return 0 if ok else 1
 
     # Sync Analytics mode
     if getattr(args, "sync_analytics", False):
