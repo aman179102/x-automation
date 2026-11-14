@@ -98,7 +98,14 @@
       "target_author": "examaddaorg",
       "reply_text": "Bridging single-node memory and concurrency concepts to distributed systems requires an early focus on non-blocking I/O models, serialization costs, and tail latency trade-offs.",
       "replied_at": "2026-11-13T22:48:26.334095+00:00"
+    },
+    {
+      "reply_tweet_id": "2121496361489355205",
+      "target_tweet_id": "2121071588867235907",
+      "target_author": "SaurabhDub28465",
+      "reply_text": "True mastery of the fundamentals shows up when handling partial failures in distributed state. Always design your core services around idempotent writes from day one.",
+      "replied_at": "2026-11-14T06:52:03.001847+00:00"
     }
   ],
-  "last_replied_at": "2026-11-13T22:48:26.334095+00:00"
+  "last_replied_at": "2026-11-14T06:52:03.001847+00:00"
 }
