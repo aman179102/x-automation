@@ -404,6 +404,27 @@ class TestSecondPassCorrectness(unittest.TestCase):
             queries = get_queries_for_category(cat)
             self.assertGreater(len(queries), 0, f"Category {cat} has no search queries")
 
+    @patch("app.telegram_bot._send_telegram_text")
+    def test_process_telegram_update_start(self, mock_send_text):
+        """Incoming /start command via webhook must trigger the welcome message."""
+        from dataclasses import replace
+        from app.telegram_bot import process_telegram_update
+
+        settings = replace(self.settings, telegram_bot_token="test_bot_token")
+        update = {
+            "update_id": 100,
+            "message": {
+                "message_id": 1,
+                "chat": {"id": 5197618511},
+                "text": "/start",
+            },
+        }
+        process_telegram_update(update, settings)
+        self.assertTrue(mock_send_text.called)
+        call_args = mock_send_text.call_args[0]
+        self.assertEqual(call_args[0], "5197618511")
+        self.assertIn("Welcome to Aman's X-Automation Co-Pilot", call_args[2])
+
 
 if __name__ == "__main__":
     unittest.main()

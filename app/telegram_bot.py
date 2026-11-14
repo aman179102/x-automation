@@ -675,6 +675,165 @@ def _save_telegram_offset(state_dir: Path, offset: int) -> None:
         pass
 
 
+def setup_telegram_webhook(settings: Settings, webhook_url: str) -> bool:
+    """
+    Registers the Telegram Webhook so incoming commands wake up Render on-demand.
+    """
+    bot_token = settings.telegram_bot_token.strip()
+    if not bot_token or not webhook_url:
+        return False
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            resp = client.post(
+                f"{TELEGRAM_API_BASE}/bot{bot_token}/setWebhook",
+                json={
+                    "url": webhook_url,
+                    "allowed_updates": ["message", "callback_query"],
+                    "drop_pending_updates": False,
+                },
+            )
+            data = resp.json()
+            logger.info("Telegram setWebhook response: %s", data)
+            return bool(data.get("ok"))
+    except Exception as exc:
+        logger.error("Failed to set Telegram webhook: %s", exc)
+        return False
+
+
+def process_telegram_update(u: dict, settings: Settings) -> None:
+    """
+    Processes a single Telegram update (message or callback query).
+    Shared by both Webhook and Polling modes.
+    """
+    bot_token = settings.telegram_bot_token.strip()
+    if not bot_token:
+        return
+
+    # 1. Process Callback Queries (Inline Button Taps)
+    cb = u.get("callback_query")
+    if cb:
+        cb_id = str(cb.get("id", ""))
+        cb_data = str(cb.get("data", ""))
+        cb_chat_id = str(cb.get("message", {}).get("chat", {}).get("id") or cb.get("from", {}).get("id", ""))
+        cb_msg_id = cb.get("message", {}).get("message_id")
+
+        if cb_data == "job_menu_main":
+            _answer_callback_query(bot_token, cb_id)
+            m_text, m_kb = build_job_main_menu()
+            if cb_msg_id:
+                _edit_telegram_menu(cb_chat_id, bot_token, cb_msg_id, m_text, m_kb)
+            else:
+                _send_telegram_menu(cb_chat_id, bot_token, m_text, m_kb)
+            return
+
+        elif cb_data == "job_menu_paid":
+            _answer_callback_query(bot_token, cb_id)
+            m_text, m_kb = build_job_paid_menu()
+            if cb_msg_id:
+                _edit_telegram_menu(cb_chat_id, bot_token, cb_msg_id, m_text, m_kb)
+            else:
+                _send_telegram_menu(cb_chat_id, bot_token, m_text, m_kb)
+            return
+
+        elif cb_data == "job_menu_unpaid":
+            _answer_callback_query(bot_token, cb_id)
+            m_text, m_kb = build_job_unpaid_menu()
+            if cb_msg_id:
+                _edit_telegram_menu(cb_chat_id, bot_token, cb_msg_id, m_text, m_kb)
+            else:
+                _send_telegram_menu(cb_chat_id, bot_token, m_text, m_kb)
+            return
+
+        elif cb_data.startswith("job_search_"):
+            cat = cb_data.replace("job_search_", "")
+            from app.hiring_radar import CATEGORY_CONFIG, trigger_telegram_hiring
+            cat_title = CATEGORY_CONFIG.get(cat, {}).get("title", cat.replace("_", " ").title())
+            _answer_callback_query(bot_token, cb_id, text=f"Hunting {cat_title}...")
+            _send_telegram_text(
+                cb_chat_id,
+                bot_token,
+                f"🔍 <i>Hunting remote <b>{html.escape(cat_title)}</b> on X live...</i>",
+            )
+            trigger_telegram_hiring(settings, category=cat, target_chat_id=cb_chat_id)
+            return
+
+    # 2. Process Chat Messages
+    msg = u.get("message") or u.get("edited_message")
+    if not msg:
+        return
+    raw_text = (msg.get("text") or "").strip()
+    text = raw_text.lower()
+    chat_id = str(msg.get("chat", {}).get("id", ""))
+
+    if not text or not chat_id:
+        return
+
+    if text in ("/start", "/help"):
+        help_text = (
+            "👋 <b>Welcome to Aman's X-Automation Co-Pilot!</b>\n\n"
+            "Commands you can send me anytime:\n"
+            "• <b>/job</b> - Interactive popup for 100% Remote Opportunities (Paid & Unpaid)\n"
+            "• <b>/cmt</b> - Find top tech discussion & get 1-Tap smart comment\n"
+            "• <b>/new</b> - Generate a fresh high-IQ post & visual card\n"
+            "• <b>/showcase</b> - Feature your projects (Storage, Analytics, PodVoice)\n"
+            "• <b>/deepdive</b> - Systems & Architecture deep dive\n"
+            "• <b>/discussion</b> - Engineering discussion question\n"
+            "• <b>/ping</b> - Check connection\n\n"
+            "⚡ Every post, comment & job pitch arrives with a 1-Tap button to publish from your phone with 0% ban risk!"
+        )
+        _send_telegram_text(chat_id, bot_token, help_text)
+    elif text == "/ping":
+        _send_telegram_text(
+            chat_id,
+            bot_token,
+            "🟢 Co-Pilot is online, healthy, and ready on Render on-demand!",
+        )
+    elif text in ("/job", "/jobs", "/remote", "/work", "/hiring", "/startup"):
+        m_text, m_kb = build_job_main_menu()
+        _send_telegram_menu(chat_id, bot_token, m_text, m_kb)
+    elif text in ("/job paid", "/jobs paid", "/paid"):
+        m_text, m_kb = build_job_paid_menu()
+        _send_telegram_menu(chat_id, bot_token, m_text, m_kb)
+    elif text in ("/job unpaid", "/jobs unpaid", "/unpaid", "/collab", "/free"):
+        m_text, m_kb = build_job_unpaid_menu()
+        _send_telegram_menu(chat_id, bot_token, m_text, m_kb)
+    elif text in ("/cmt", "/comment", "/reply", "/engage"):
+        _send_telegram_text(
+            chat_id,
+            bot_token,
+            "🔍 <i>Scanning X for trending engineering discussions & drafting high-IQ smart reply...</i>",
+        )
+        trigger_telegram_comment(settings, target_chat_id=chat_id)
+    elif text in ("/new", "/draft", "/post"):
+        _send_telegram_text(
+            chat_id,
+            bot_token,
+            "⚙️ <i>Researching latest engineering developments & generating draft...</i>",
+        )
+        trigger_telegram_post(settings, force=True)
+    elif text in ("/showcase", "/project"):
+        _send_telegram_text(
+            chat_id,
+            bot_token,
+            "⚙️ <i>Preparing project showcase for Aman's open-source architecture...</i>",
+        )
+        trigger_telegram_post(settings, preferred_kind="showcase", force=True)
+    elif text in ("/deepdive", "/deep_dive"):
+        _send_telegram_text(
+            chat_id,
+            bot_token,
+            "⚙️ <i>Formulating systems architecture deep dive...</i>",
+        )
+        trigger_telegram_post(settings, preferred_kind="deep_dive", force=True)
+    elif text in ("/discussion", "/question"):
+        _send_telegram_text(
+            chat_id,
+            bot_token,
+            "⚙️ <i>Crafting high-signal developer discussion dilemma...</i>",
+        )
+        trigger_telegram_post(settings, preferred_kind="discussion", force=True)
+
+
 def run_telegram_listener(settings: Settings) -> None:
     """
     Runs a continuous Telegram polling listener so Aman can generate drafts
@@ -713,130 +872,7 @@ def run_telegram_listener(settings: Settings) -> None:
                 for u in updates:
                     offset = u["update_id"] + 1
                     _save_telegram_offset(settings.state_dir, offset)
-
-                    # 1. Process Callback Queries (Inline Button Taps)
-                    cb = u.get("callback_query")
-                    if cb:
-                        cb_id = str(cb.get("id", ""))
-                        cb_data = str(cb.get("data", ""))
-                        cb_chat_id = str(cb.get("message", {}).get("chat", {}).get("id") or cb.get("from", {}).get("id", ""))
-                        cb_msg_id = cb.get("message", {}).get("message_id")
-
-                        if cb_data == "job_menu_main":
-                            _answer_callback_query(bot_token, cb_id)
-                            m_text, m_kb = build_job_main_menu()
-                            if cb_msg_id:
-                                _edit_telegram_menu(cb_chat_id, bot_token, cb_msg_id, m_text, m_kb)
-                            else:
-                                _send_telegram_menu(cb_chat_id, bot_token, m_text, m_kb)
-                            continue
-
-                        elif cb_data == "job_menu_paid":
-                            _answer_callback_query(bot_token, cb_id)
-                            m_text, m_kb = build_job_paid_menu()
-                            if cb_msg_id:
-                                _edit_telegram_menu(cb_chat_id, bot_token, cb_msg_id, m_text, m_kb)
-                            else:
-                                _send_telegram_menu(cb_chat_id, bot_token, m_text, m_kb)
-                            continue
-
-                        elif cb_data == "job_menu_unpaid":
-                            _answer_callback_query(bot_token, cb_id)
-                            m_text, m_kb = build_job_unpaid_menu()
-                            if cb_msg_id:
-                                _edit_telegram_menu(cb_chat_id, bot_token, cb_msg_id, m_text, m_kb)
-                            else:
-                                _send_telegram_menu(cb_chat_id, bot_token, m_text, m_kb)
-                            continue
-
-                        elif cb_data.startswith("job_search_"):
-                            cat = cb_data.replace("job_search_", "")
-                            from app.hiring_radar import CATEGORY_CONFIG, trigger_telegram_hiring
-                            cat_title = CATEGORY_CONFIG.get(cat, {}).get("title", cat.replace("_", " ").title())
-                            _answer_callback_query(bot_token, cb_id, text=f"Hunting {cat_title}...")
-                            _send_telegram_text(
-                                cb_chat_id,
-                                bot_token,
-                                f"🔍 <i>Hunting remote <b>{html.escape(cat_title)}</b> on X live...</i>",
-                            )
-                            trigger_telegram_hiring(settings, category=cat, target_chat_id=cb_chat_id)
-                            continue
-
-                    # 2. Process Chat Messages
-                    msg = u.get("message") or u.get("edited_message")
-                    if not msg:
-                        continue
-                    raw_text = (msg.get("text") or "").strip()
-                    text = raw_text.lower()
-                    chat_id = str(msg.get("chat", {}).get("id", ""))
-
-                    if not text:
-                        continue
-
-                    if text in ("/start", "/help"):
-                        help_text = (
-                            "👋 <b>Welcome to Aman's X-Automation Co-Pilot!</b>\n\n"
-                            "Commands you can send me anytime:\n"
-                            "• <b>/job</b> - Interactive popup for 100% Remote Opportunities (Paid & Unpaid)\n"
-                            "• <b>/cmt</b> - Find top tech discussion & get 1-Tap smart comment\n"
-                            "• <b>/new</b> - Generate a fresh high-IQ post & visual card\n"
-                            "• <b>/showcase</b> - Feature your projects (Storage, Analytics, PodVoice)\n"
-                            "• <b>/deepdive</b> - Systems & Architecture deep dive\n"
-                            "• <b>/discussion</b> - Engineering discussion question\n"
-                            "• <b>/ping</b> - Check connection\n\n"
-                            "⚡ Every post, comment & job pitch arrives with a 1-Tap button to publish from your phone with 0% ban risk!"
-                        )
-                        _send_telegram_text(chat_id, bot_token, help_text)
-                    elif text == "/ping":
-                        _send_telegram_text(
-                            chat_id,
-                            bot_token,
-                            "🟢 Co-Pilot is online, healthy, and ready on Render 24/7!",
-                        )
-                    elif text in ("/job", "/jobs", "/remote", "/work", "/hiring", "/startup"):
-                        m_text, m_kb = build_job_main_menu()
-                        _send_telegram_menu(chat_id, bot_token, m_text, m_kb)
-                    elif text in ("/job paid", "/jobs paid", "/paid"):
-                        m_text, m_kb = build_job_paid_menu()
-                        _send_telegram_menu(chat_id, bot_token, m_text, m_kb)
-                    elif text in ("/job unpaid", "/jobs unpaid", "/unpaid", "/collab", "/free"):
-                        m_text, m_kb = build_job_unpaid_menu()
-                        _send_telegram_menu(chat_id, bot_token, m_text, m_kb)
-                    elif text in ("/cmt", "/comment", "/reply", "/engage"):
-                        _send_telegram_text(
-                            chat_id,
-                            bot_token,
-                            "🔍 <i>Scanning X for trending engineering discussions & drafting high-IQ smart reply...</i>",
-                        )
-                        trigger_telegram_comment(settings, target_chat_id=chat_id)
-                    elif text in ("/new", "/draft", "/post"):
-                        _send_telegram_text(
-                            chat_id,
-                            bot_token,
-                            "⚙️ <i>Researching latest engineering developments & generating draft...</i>",
-                        )
-                        trigger_telegram_post(settings, force=True)
-                    elif text in ("/showcase", "/project"):
-                        _send_telegram_text(
-                            chat_id,
-                            bot_token,
-                            "⚙️ <i>Preparing project showcase for Aman's open-source architecture...</i>",
-                        )
-                        trigger_telegram_post(settings, preferred_kind="showcase", force=True)
-                    elif text in ("/deepdive", "/deep_dive"):
-                        _send_telegram_text(
-                            chat_id,
-                            bot_token,
-                            "⚙️ <i>Formulating systems architecture deep dive...</i>",
-                        )
-                        trigger_telegram_post(settings, preferred_kind="deep_dive", force=True)
-                    elif text in ("/discussion", "/question"):
-                        _send_telegram_text(
-                            chat_id,
-                            bot_token,
-                            "⚙️ <i>Crafting high-signal developer discussion dilemma...</i>",
-                        )
-                        trigger_telegram_post(settings, preferred_kind="discussion", force=True)
+                    process_telegram_update(u, settings)
 
         except KeyboardInterrupt:
             print("\n👋 Telegram Bot listener stopped.")
