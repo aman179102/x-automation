@@ -651,6 +651,30 @@ def trigger_telegram_comment(settings: Settings, target_chat_id: Optional[str] =
     return False
 
 
+def _load_telegram_offset(state_dir: Path) -> int:
+    state_file = state_dir / "telegram_state.json"
+    if not state_file.exists():
+        return 0
+    try:
+        with open(state_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return int(data.get("last_offset", 0))
+    except Exception:
+        return 0
+
+
+def _save_telegram_offset(state_dir: Path, offset: int) -> None:
+    try:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        state_file = state_dir / "telegram_state.json"
+        tmp_file = state_dir / "telegram_state.json.tmp"
+        with open(tmp_file, "w", encoding="utf-8") as f:
+            json.dump({"last_offset": offset}, f)
+        tmp_file.replace(state_file)
+    except Exception:
+        pass
+
+
 def run_telegram_listener(settings: Settings) -> None:
     """
     Runs a continuous Telegram polling listener so Aman can generate drafts
@@ -665,25 +689,17 @@ def run_telegram_listener(settings: Settings) -> None:
     print("\n🤖 [TELEGRAM INTERACTIVE BOT RUNNING]")
     print(f"   Connected to @x_akk_bot (Chat ID: {settings.telegram_chat_id})")
     print("   Available Telegram commands in chat:")
+    print("   • /job        - Interactive popup for Remote Opportunities (Paid & Unpaid)")
+    print("   • /cmt        - Find top tech discussion & get 1-Tap smart comment")
     print("   • /new        - Generate new balanced draft & visual card")
     print("   • /showcase   - Feature personal open-source project")
     print("   • /deepdive   - Systems architecture deep dive")
     print("   • /discussion - High-signal developer discussion")
-    print("   • /cmt        - Find top tech discussion & get 1-Tap smart comment")
     print("   • /ping       - Check bot status")
     print("\n   Listening for incoming messages... (Press Ctrl+C to stop)\n")
 
-    offset = 0
-    # Clear old pending updates
-    try:
-        with httpx.Client(timeout=10.0) as client:
-            resp = client.get(f"{TELEGRAM_API_BASE}/bot{bot_token}/getUpdates?offset=-1")
-            if resp.status_code == 200:
-                data = resp.json().get("result", [])
-                if data:
-                    offset = data[-1]["update_id"] + 1
-    except Exception:
-        pass
+    # Load persistent offset so no user command is dropped across server restarts
+    offset = _load_telegram_offset(settings.state_dir)
 
     while True:
         try:
@@ -696,6 +712,7 @@ def run_telegram_listener(settings: Settings) -> None:
                 updates = resp.json().get("result", [])
                 for u in updates:
                     offset = u["update_id"] + 1
+                    _save_telegram_offset(settings.state_dir, offset)
 
                     # 1. Process Callback Queries (Inline Button Taps)
                     cb = u.get("callback_query")

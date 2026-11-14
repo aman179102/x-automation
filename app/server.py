@@ -87,6 +87,29 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         logger.info("%s - %s", self.address_string(), format % args)
 
 
+def keepalive_worker() -> None:
+    """
+    Periodically sends an external HTTP request to Render's public URL every 8 minutes
+    to keep the free-tier service awake 24/7 without spinning down.
+    """
+    import time
+    import httpx
+
+    # Wait 60s for server to bind and DNS to settle
+    time.sleep(60)
+    external_url = os.getenv("RENDER_EXTERNAL_URL") or "https://x-automation-bot-lzhh.onrender.com"
+    health_url = f"{external_url.rstrip('/')}/health"
+    logger.info("Keepalive self-ping worker active for: %s", health_url)
+    while True:
+        try:
+            with httpx.Client(timeout=15.0) as client:
+                resp = client.get(health_url)
+                logger.info("Self-keepalive ping sent to %s (Status: %d)", health_url, resp.status_code)
+        except Exception as exc:
+            logger.warning("Self-keepalive ping warning: %s", exc)
+        time.sleep(480)  # Ping every 8 minutes (Render sleeps after 15 minutes of inactivity)
+
+
 def main() -> None:
     settings = load_settings()
     port = int(os.getenv("PORT", "10000"))
@@ -100,6 +123,14 @@ def main() -> None:
         daemon=True,
     )
     bot_thread.start()
+
+    logger.info("Starting Render keepalive thread...")
+    keepalive_thread = threading.Thread(
+        target=keepalive_worker,
+        name="RenderKeepAliveThread",
+        daemon=True,
+    )
+    keepalive_thread.start()
 
     server_address = ("0.0.0.0", port)
     httpd = ThreadingHTTPServer(server_address, HealthCheckHandler)
