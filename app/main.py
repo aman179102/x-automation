@@ -196,7 +196,6 @@ def main() -> int:
                 print("   ✅ Recorded in history.")
             elif choice == "2":
                 print("   ⏳ Simulating human typing delay (3s)...")
-                import time
                 time.sleep(3)
                 try:
                     reply_id = asyncio.run(post_live_reply(c, reply, settings))
