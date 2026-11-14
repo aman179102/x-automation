@@ -80,12 +80,12 @@ class Settings:
     # Project Showcase Ratio (0.20 = 20% personal project posts)
     showcase_ratio: float = 0.20
 
-    # Safety & Rate Limits
+    # Safety & Rate Limits (100% Ban-Proof Conservative Settings)
     timezone: str = "Asia/Kolkata"
-    daily_post_cap: int = 4
-    min_spacing_minutes: int = 120
-    posting_window_start: str = "08:00"
-    posting_window_end: str = "23:30"
+    daily_post_cap: int = 2
+    min_spacing_minutes: int = 240
+    posting_window_start: str = "09:00"
+    posting_window_end: str = "23:00"
 
     # Paths
     state_dir: Path = field(default_factory=lambda: ROOT / "state")

@@ -2,11 +2,10 @@ name: Post to X (Twitter)
 
 on:
   schedule:
-    # 4 times a day (UTC): 03:00, 08:00, 13:00, 17:00 (approx 08:30, 13:30, 18:30, 22:30 IST)
-    - cron: "0 3 * * *"
-    - cron: "0 8 * * *"
-    - cron: "0 13 * * *"
-    - cron: "0 17 * * *"
+    # 2 ultra-safe prime tech peak windows per day (Asia/Kolkata):
+    # 10:05 AM IST (04:35 UTC) & 07:45 PM IST (14:15 UTC)
+    - cron: "35 4 * * *"
+    - cron: "15 14 * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -75,6 +74,10 @@ jobs:
           ARGS=""
           if [ "$MODE" = "live" ]; then
             ARGS="--live"
+            # Add humanized randomized jitter (45-180 seconds) so executions never hit exact :00 marks
+            JITTER=$((45 + RANDOM % 135))
+            echo "Sleeping ${JITTER}s for humanized timing jitter..."
+            sleep $JITTER
           else
             ARGS="--dry-run"
           fi

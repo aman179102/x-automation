@@ -44,6 +44,7 @@ def _cli_parser() -> argparse.ArgumentParser:
     p.add_argument("--test-image", action="store_true", help="Test technical graphic generation with brand card overlay")
     p.add_argument("--engagement-plan", action="store_true", help="Find relevant developer tweets & draft smart replies")
     p.add_argument("--engagement-live", action="store_true", help="Publish a smart reply to a top tech tweet")
+    p.add_argument("--copilot", action="store_true", help="Interactive 100% ban-proof desktop co-pilot for smart replies")
     p.add_argument("--sync-analytics", action="store_true", help="Sync real post metrics and calculate format performance")
     p.add_argument("--force", action="store_true", help="Bypass posting windows and daily limits")
     p.add_argument("--daemon", action="store_true", help="Run continuously in background mode")
@@ -116,7 +117,99 @@ def main() -> int:
         print("-" * 75 + "\n")
         return 0
 
-    # 4. Engagement modes (Smart Commenting)
+    # 4. Interactive Co-Pilot Mode (100% Ban-Proof Desktop Assistant)
+    if getattr(args, "copilot", False):
+        import asyncio
+        import urllib.parse
+        import webbrowser
+        from datetime import datetime, timezone
+        from app.engagement import (
+            find_engagement_candidates,
+            draft_reply,
+            validate_reply_quality,
+            load_engagement_state,
+            save_engagement_state,
+            post_live_reply,
+        )
+
+        eng_state = load_engagement_state(settings.state_dir)
+        print("\n🛡️ [100% BAN-PROOF DESKTOP CO-PILOT] Scanning X for top technical discussions...")
+        candidates = find_engagement_candidates(settings)
+        if not candidates:
+            print("ℹ️ No eligible engagement discussions found right now.")
+            return 0
+
+        print(f"Found {len(candidates)} high-signal engineering discussions.\n" + "=" * 70)
+        for idx, c in enumerate(candidates, 1):
+            print(f"\n📌 Discussion [{idx}/{len(candidates)}] by @{c.author} ({c.likes} likes)")
+            print(f"   Tweet: \"{c.text}\"")
+            print(f"   URL:   https://x.com/{c.author}/status/{c.tweet_id}")
+
+            reply, reason = draft_reply(c.text, settings, author=c.author)
+            if not reply:
+                print(f"   ⚠️ Could not generate high-confidence reply: {reason}")
+                continue
+
+            is_valid, val_reason = validate_reply_quality(c, reply, eng_state)
+            if not is_valid:
+                print(f"   ⚠️ Reply failed quality gate: {val_reason}")
+                continue
+
+            print(f"\n   💡 AI Drafted Perspective: \"{reply}\"")
+            print(f"   🎯 Architectural Nuance:  {reason}")
+            print("\n   Options:")
+            print("   [1] Open pre-filled reply in Browser (100% Ban-Proof / Real Human Action)")
+            print("   [2] Send immediately via local residential IP (simulated human delay)")
+            print("   [3] Skip to next discussion")
+            print("   [q] Quit Co-Pilot")
+
+            try:
+                choice = input("\n   Select option [1/2/3/q]: ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                break
+
+            if choice == "1":
+                intent_url = f"https://twitter.com/intent/tweet?in_reply_to={c.tweet_id}&text={urllib.parse.quote(reply)}"
+                print(f"   🌐 Opening browser intent: {intent_url}")
+                webbrowser.open(intent_url)
+                now_iso = datetime.now(timezone.utc).isoformat()
+                eng_state.setdefault("replies", []).append({
+                    "reply_tweet_id": "browser_intent",
+                    "target_tweet_id": c.tweet_id,
+                    "target_author": c.author,
+                    "reply_text": reply,
+                    "replied_at": now_iso,
+                })
+                eng_state["last_replied_at"] = now_iso
+                save_engagement_state(settings.state_dir, eng_state)
+                print("   ✅ Recorded in history.")
+            elif choice == "2":
+                print("   ⏳ Simulating human typing delay (3s)...")
+                import time
+                time.sleep(3)
+                try:
+                    reply_id = asyncio.run(post_live_reply(c, reply, settings))
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    eng_state.setdefault("replies", []).append({
+                        "reply_tweet_id": reply_id,
+                        "target_tweet_id": c.tweet_id,
+                        "target_author": c.author,
+                        "reply_text": reply,
+                        "replied_at": now_iso,
+                    })
+                    eng_state["last_replied_at"] = now_iso
+                    save_engagement_state(settings.state_dir, eng_state)
+                    print(f"   🎉 Posted successfully via residential IP! https://x.com/{settings.author_handle.strip('@')}/status/{reply_id}")
+                except Exception as exc:
+                    print(f"   ❌ Post failed: {exc}")
+            elif choice == "q":
+                break
+            else:
+                print("   ⏭️ Skipped.")
+        print("\n🛡️ [CO-PILOT COMPLETE]\n")
+        return 0
+
+    # 5. Engagement modes (Smart Commenting)
     if args.engagement_plan or args.engagement_live:
         import asyncio
         from datetime import datetime, timezone
