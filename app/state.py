@@ -53,6 +53,8 @@ def record_post(
     tweet_id: str,
     tweet_text: str,
     media_path: str = "",
+    format_kind: str = "news",
+    quality_score: float = 0.0,
 ) -> None:
     now_iso = datetime.now(timezone.utc).isoformat()
     state.setdefault("seen_urls", []).append(story.item.url)
@@ -62,6 +64,8 @@ def record_post(
             "title": story.title,
             "url": story.item.url,
             "category": story.category,
+            "format_kind": format_kind,
+            "quality_score": round(quality_score, 1),
             "posted_at": now_iso,
             "text": tweet_text,
             "media_path": media_path,

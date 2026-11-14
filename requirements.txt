@@ -4,3 +4,5 @@ python-dotenv>=1.0,<2.0
 tzdata>=2024.1
 twifork>=2.4.0
 curl_cffi>=0.17.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ class StoryItem:
     category: str = "tech"
     guid: str = ""
     score: float = 0.0
-    source_kind: str = "rss"  # "rss", "github", "showcase", etc.
+    source_kind: str = "rss"  # "rss", "github", "showcase", "deep_dive", "discussion", etc.
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -67,6 +67,10 @@ class Story:
     def is_showcase(self) -> bool:
         return self.item.source_kind == "showcase"
 
+    @property
+    def source_kind(self) -> str:
+        return self.item.source_kind
+
 
 @dataclass
 class PostDraft:
@@ -76,9 +80,13 @@ class PostDraft:
     alt_text: str
     visual_prompt: str = ""
     category: str = "tech"
-    story: Story | None = None
-    media_path: str | None = None
+    story: Optional[Story] = None
+    media_path: Optional[str] = None
     tags: list[str] = field(default_factory=list)
+    format_kind: str = "deep_dive"
+    has_image: bool = True
+    technical_takeaway: str = ""
+    quality_score: float = 0.0
 
 
 @dataclass

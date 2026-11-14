@@ -151,7 +151,7 @@ def _openrouter(
 
 def generate_json(settings: Settings, system: str, user: str) -> dict[str, Any] | None:
     """Attempts generation via Gemini, falling back to Groq, then OpenRouter."""
-    with httpx.Client(timeout=30.0) as client:
+    with httpx.Client(timeout=15.0) as client:
         result = _gemini(client, settings, system, user)
         if result:
             return result

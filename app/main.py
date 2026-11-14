@@ -8,14 +8,16 @@ from pathlib import Path
 
 from app.compliance import can_post_now
 from app.config import Settings, load_settings
-from app.image import render_branded_image
+from app.image import render_branded_image, validate_image_consistency
 from app.models import PostDraft, Story, StoryItem
-from app.scheduler import run_cycle, run_loop
+from app.quality import evaluate_quality_gate
+from app.scheduler import _pick_balanced_format, run_cycle, run_loop
 from app.select import rank_candidates, select_best_story
-from app.sources import PERSONAL_PROJECTS, fetch_all_stories
+from app.sources import fetch_all_stories
 from app.state import load_state, record_post, save_state
 from app.text import twitter_length
 from app.twitter import TwitterClient, TwitterError
+from app.verify import verify_draft_against_source
 from app.writer import Writer
 
 logging.basicConfig(
@@ -28,16 +30,18 @@ logger = logging.getLogger("x-automation")
 
 def _cli_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="X (Twitter) Automation Engine: Post curated tech insights & developer showcases."
+        description="X (Twitter) Professional Publishing Engine for Aman Kumar (@aman179102)."
     )
     mode = p.add_mutually_exclusive_group()
     mode.add_argument("--live", action="store_true", help="Publish directly to X (Twitter)")
     mode.add_argument("--dry-run", action="store_true", help="Generate post & image without publishing (default)")
 
-    p.add_argument("--check-account", action="store_true", help="Verify Twitter API keys and account details")
-    p.add_argument("--plan", action="store_true", help="List ranked story candidates and virality scores")
+    p.add_argument("--check-account", action="store_true", help="Verify Twitter credentials and account details")
+    p.add_argument("--plan", action="store_true", help="List ranked candidates across diverse formats with scores")
     p.add_argument("--showcase", action="store_true", help="Force post an open-source project showcase")
-    p.add_argument("--test-image", action="store_true", help="Test AI/stock image generation with brand card overlay")
+    p.add_argument("--deep-dive", action="store_true", help="Force post an engineering deep dive")
+    p.add_argument("--discussion", action="store_true", help="Force post a technical discussion question")
+    p.add_argument("--test-image", action="store_true", help="Test technical graphic generation with brand card overlay")
     p.add_argument("--engagement-plan", action="store_true", help="Find relevant developer tweets & draft smart replies")
     p.add_argument("--engagement-live", action="store_true", help="Publish a smart reply to a top tech tweet")
     p.add_argument("--force", action="store_true", help="Bypass posting windows and daily limits")
@@ -66,31 +70,39 @@ def main() -> int:
 
     # 2. Test image generation mode
     if args.test_image:
-        print("\n🎨 Testing Dynamic Image Generator with Personal Branding...")
+        print("\n🎨 Testing Technical Architecture Card Generator...")
         sample_draft = PostDraft(
             body="Testing visual generator for X automation pipeline.",
-            image_title="CPU Cache Timing Exploit in Isolated MicroVMs",
-            image_facts=["CVSS 9.4", "Zero Network Bypass"],
-            alt_text="Cybersecurity breakdown: CPU cache side-channel exploit in isolated microVMs",
-            visual_prompt="futuristic cyberpunk microchip hardware glowing circuits dark blue amber octane render",
-            category="security",
+            image_title="LSM-Trees vs B+ Trees",
+            image_facts=["Sequential Disk I/O vs Random Writes"],
+            alt_text="Architecture diagram comparing LSM-Trees and B-Trees in storage engines",
+            visual_prompt="minimal dark slate technical architecture diagram high contrast",
+            category="database",
+            format_kind="deep_dive",
+            technical_takeaway="Trades compaction read overhead for zero random write penalties.",
         )
         out_file = settings.output_dir / "test_brand_card.jpg"
         render_branded_image(sample_draft, settings, out_file)
         print(f"✅ Test card generated successfully: {out_file}\n")
         return 0
 
-    # 3. Plan mode: list ranked candidates
+    # 3. Plan mode: list ranked candidates across diverse formats
     if args.plan:
-        print("\n📊 Fetching feeds and ranking candidates...")
+        print("\n📊 Fetching feeds & candidates across diverse formats...")
         state = load_state(settings.state_dir)
         stories = fetch_all_stories(settings)
         ranked = rank_candidates(stories, state)
-        print(f"\nFound {len(ranked)} eligible candidates:\n" + "-" * 70)
-        for idx, (story, score) in enumerate(ranked[:10], 1):
-            print(f"{idx:2d}. [{story.category.upper():8s}] (Score: {score:.2f}) {story.title}")
+        recent_posts = state.get("posts", [])
+        recommended_format = _pick_balanced_format(recent_posts)
+
+        print(f"\nNext Recommended Format to maintain 40/25/20/10/5 mix: [{recommended_format.upper()}]")
+        print(f"Found {len(ranked)} eligible candidates:\n" + "-" * 75)
+        for idx, (story, score) in enumerate(ranked[:12], 1):
+            kind_tag = story.source_kind.upper()
+            cat_tag = story.category.upper()
+            print(f"{idx:2d}. [{kind_tag:12s} | {cat_tag:10s}] (Score: {score:.2f}) {story.title}")
             print(f"    Source: {story.primary_source.name} | {story.item.url}")
-        print("-" * 70)
+        print("-" * 75 + "\n")
         return 0
 
     # 4. Engagement modes (Smart Commenting)
@@ -100,23 +112,23 @@ def main() -> int:
         from app.engagement import (
             can_reply_now,
             draft_reply,
-            find_candidates,
+            find_engagement_candidates,
             load_engagement_state,
             post_live_reply,
             save_engagement_state,
         )
 
         eng_state = load_engagement_state(settings.state_dir)
-        ok, reason = can_reply_now(eng_state, settings)
+        if not args.force:
+            ok, reason = can_reply_now(eng_state, settings)
+            if not ok and args.engagement_live:
+                print(f"⏸️ Cannot reply right now: {reason}")
+                return 0
 
-        if not ok and not args.force and args.engagement_live:
-            print(f"⏸️ Engagement skipped: {reason}")
-            return 0
-
-        print("\n🔍 Scanning X for hot engineering discussions...")
-        candidates = asyncio.run(find_candidates(settings, eng_state, limit=3))
+        print("\n🔍 Scanning X for relevant high-signal engineering discussions...")
+        candidates = find_engagement_candidates(settings)
         if not candidates:
-            print("ℹ️ No eligible candidate tweets found right now.")
+            print("ℹ️ No eligible engagement candidates found right now.")
             return 0
 
         print(f"Found {len(candidates)} high-potential tweets for technical engagement:\n" + "=" * 70)
@@ -154,12 +166,12 @@ def main() -> int:
             print(f"❌ Failed to post reply: {exc}\n")
             return 1
 
-    # 4. Continuous daemon mode
+    # 5. Continuous daemon mode
     if args.daemon:
         run_loop(settings, live=args.live)
         return 0
 
-    # 5. Single cycle (dry-run or live)
+    # 6. Single cycle (dry-run or live) with full Quality Gate & Verification
     state = load_state(settings.state_dir)
     ok, reason = can_post_now(state, settings, force=args.force)
     if not ok and args.live:
@@ -167,64 +179,116 @@ def main() -> int:
         print("   (Use --force to bypass time windows for testing)")
         return 0
 
-    # Select story (or showcase if requested)
+    # Select story
+    preferred_kind = None
     if args.showcase:
-        print("🚀 Selecting open-source project showcase...")
-        stories = fetch_all_stories(settings, include_showcase=True)
-        best_story = stories[0]
+        preferred_kind = "showcase"
+    elif getattr(args, "deep_dive", False):
+        preferred_kind = "deep_dive"
+    elif getattr(args, "discussion", False):
+        preferred_kind = "discussion"
     else:
-        print("📡 Fetching latest tech stories...")
-        stories = fetch_all_stories(settings)
+        preferred_kind = _pick_balanced_format(state.get("posts", []))
+
+    print(f"🎯 Target Format: [{preferred_kind.upper()}]")
+    print("📡 Fetching stories & evaluating sources...")
+    stories = fetch_all_stories(settings)
+    best_story = select_best_story(stories, state, preferred_kind=preferred_kind)
+
+    if not best_story:
         best_story = select_best_story(stories, state)
 
     if not best_story:
         print("ℹ️ No new eligible stories found.")
         return 0
 
-    print(f"📌 Selected Story: {best_story.title}")
-    print(f"   Category: {best_story.category.upper()} | Source: {best_story.primary_source.name}")
+    print(f"📌 Selected Candidate: {best_story.title}")
+    print(f"   Format: {best_story.source_kind.upper()} | Category: {best_story.category.upper()} | Source: {best_story.primary_source.name}")
 
     # Generate draft
-    print("✍️ Drafting tweet (English)...")
+    print("✍️ Generating technical draft...")
     writer = Writer(settings)
     draft = writer.create_draft(best_story)
     tweet_text = writer.format_tweet_text(draft)
     eff_len = twitter_length(tweet_text)
 
-    # Render branded visual
-    ts = int(time.time())
-    img_path = settings.output_dir / f"tweet_{ts}.jpg"
-    print(f"🖼️ Generating branded visual ({settings.image_mode} mode)...")
-    render_branded_image(draft, settings, img_path)
+    # Fact verification for news
+    if best_story.source_kind == "news":
+        print("🔍 Verifying facts against original extracted article...")
+        article_text = best_story.facts.get("article_text", "")
+        verification = verify_draft_against_source(draft.body, best_story.title, article_text, settings)
+        if not verification.passed:
+            print(f"❌ REJECTED BY FACT-CHECKER: {verification.rejection_reason}")
+            if verification.unsubstantiated_claims:
+                print(f"   Unsubstantiated: {verification.unsubstantiated_claims}")
+            return 1
+        print(f"✅ Facts Verified! (Confidence: {verification.confidence_score:.2f})")
+
+    # Quality Gate Evaluation
+    print("⚖️ Evaluating Publishing Quality Gate (Sections 11-20)...")
+    qg = evaluate_quality_gate(draft, tweet_text, state.get("posts", []), settings, has_image=draft.has_image)
+    print(f"   Quality Score: {qg.score:.1f} / 10.0 | Passed: {'YES' if qg.passed else 'NO'}")
+    if qg.issues:
+        print(f"   Gate Feedback: {qg.issues}")
+    if not qg.passed or qg.score < 8.0:
+        print(f"❌ Post held back by Quality Gate: {qg.verdict}")
+        return 1
+
+    # Render branded visual (or clean text-only)
+    img_path = None
+    if draft.has_image:
+        ts = int(time.time())
+        candidate_img = settings.output_dir / f"tweet_{ts}.jpg"
+        print("🖼️ Generating professional technical graphic...")
+        img_path = render_branded_image(draft, settings, candidate_img)
+        if not validate_image_consistency(draft, img_path):
+            print("⚠️ Visual failed consistency check. Switching to clean text-only post.")
+            img_path = None
 
     # Display preview
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 65)
     print("📱 PREVIEW TWEET")
-    print("=" * 60)
+    print("=" * 65)
     print(tweet_text)
-    print("=" * 60)
-    print(f"Character Count: {eff_len} / 280 (URLs counted as 23)")
-    print(f"Image Output:    {img_path}")
-    print(f"Image Alt Text:  {draft.alt_text}")
-    print(f"Branding Banner: Curated by {settings.author_name} ({settings.author_handle})")
-    print("=" * 60 + "\n")
+    print("=" * 65)
+    print(f"Character Count:  {eff_len} / 280 (URLs counted as 23)")
+    print(f"Format Kind:      {draft.format_kind.upper()}")
+    print(f"Quality Score:    {qg.score:.1f} / 10.0 (Gate: PASSED)")
+    if img_path:
+        print(f"Image Output:     {img_path}")
+        print(f"Image Alt Text:   {draft.alt_text}")
+    else:
+        print("Image Output:     [TEXT-ONLY POST - No forced graphic]")
+    print(f"Author Branding:  {settings.author_name} ({settings.author_handle})")
+    print("=" * 65 + "\n")
 
     if not args.live:
-        print("💡 [DRY-RUN COMPLETE] Run with '--live' to publish to Twitter/X.")
+        print("💡 [DRY-RUN COMPLETE] Run with '--live' to publish directly to X.")
         return 0
 
     # Post live
     print("🚀 Publishing to X (Twitter)...")
     try:
         client = TwitterClient(settings)
-        print("📤 Uploading media...")
-        media_id = client.upload_media(img_path, alt_text=draft.alt_text)
+        media_ids = []
+        if img_path:
+            print("📤 Uploading media...")
+            media_id = client.upload_media(img_path, alt_text=draft.alt_text)
+            media_ids.append(media_id)
 
         print("🐦 Posting tweet...")
-        result = client.post_tweet(text=tweet_text, media_ids=[media_id])
+        result = client.post_tweet(text=tweet_text, media_ids=media_ids)
 
         # Save state
-        record_post(state, best_story, result.tweet_id, tweet_text, str(img_path))
+        record_post(
+            state,
+            best_story,
+            result.tweet_id,
+            tweet_text,
+            str(img_path) if img_path else "",
+            format_kind=best_story.source_kind,
+            quality_score=qg.score,
+        )
         save_state(settings.state_dir, state)
 
         print(f"\n🎉 Successfully published! Tweet URL:")

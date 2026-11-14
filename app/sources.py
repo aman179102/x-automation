@@ -6,16 +6,16 @@ import random
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from html.parser import HTMLParser
 from typing import Any
 
 import httpx
 
 from app.config import Settings
+from app.extractor import extract_article_content
 from app.models import SourceRef, Story, StoryItem
-from app.text import canonical_url, clean_markdown, domain, normalize_space, strip_html, title_fingerprint
+from app.text import canonical_url, clean_markdown, domain, normalize_space, strip_html
 
 logger = logging.getLogger(__name__)
 
@@ -26,56 +26,195 @@ class FeedSpec:
     url: str
     category: str
     weight: float
-    limit: int = 10
+    limit: int = 8
 
 
+# High-authority official engineering blogs prioritized per Section 12
 FEEDS: tuple[FeedSpec, ...] = (
-    FeedSpec("Google DeepMind", "https://deepmind.google/blog/rss.xml", "ai", 1.0, 8),
-    FeedSpec("OpenAI", "https://openai.com/news/rss.xml", "ai", 1.0, 8),
-    FeedSpec("Hugging Face", "https://huggingface.co/blog/feed.xml", "ai", 0.95, 8),
-    FeedSpec("GitHub Blog", "https://github.blog/feed/", "dev", 0.95, 8),
-    FeedSpec("Go Blog", "https://go.dev/blog/feed.atom", "dev", 0.95, 6),
-    FeedSpec("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index", "tech", 0.9, 10),
-    FeedSpec("Cloudflare", "https://blog.cloudflare.com/rss/", "dev", 0.85, 8),
-    FeedSpec("The Verge", "https://www.theverge.com/rss/index.xml", "bigtech", 0.8, 10),
-    FeedSpec("TechCrunch", "https://techcrunch.com/feed/", "startups", 0.75, 10),
-    FeedSpec("The Hacker News", "https://feeds.feedburner.com/TheHackersNews", "security", 0.4, 5),
+    FeedSpec("Google DeepMind", "https://deepmind.google/blog/rss.xml", "ai", 1.0, 6),
+    FeedSpec("OpenAI", "https://openai.com/news/rss.xml", "ai", 1.0, 6),
+    FeedSpec("Go Blog", "https://go.dev/blog/feed.atom", "dev", 1.0, 6),
+    FeedSpec("GitHub Blog", "https://github.blog/feed/", "dev", 0.95, 6),
+    FeedSpec("Cloudflare Blog", "https://blog.cloudflare.com/rss/", "dev", 0.95, 6),
+    FeedSpec("Hugging Face", "https://huggingface.co/blog/feed.xml", "ai", 0.90, 6),
+    FeedSpec("Netflix TechBlog", "https://netflixtechblog.com/feed", "architecture", 0.90, 6),
+    FeedSpec("AWS Architecture", "https://aws.amazon.com/blogs/architecture/feed/", "architecture", 0.85, 6),
+    FeedSpec("Uber Engineering", "https://www.uber.com/en-IN/blog/engineering/rss/", "architecture", 0.85, 6),
+    FeedSpec("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index", "tech", 0.70, 8),
 )
 
-# Aman Kumar's verified open-source projects for authority & SEO showcases
+# Aman Kumar's verified open-source projects (Section 16 showcase & build-in-public)
 PERSONAL_PROJECTS = (
     {
-        "title": "Distributed File Storage Service in Go",
+        "title": "Distributed Storage Engine in Go",
         "url": "https://github.com/aman179102",
-        "summary": "High-performance S3-compatible distributed storage engine featuring Reed-Solomon erasure coding, content-defined deduplication, chunking, and Raft consensus metadata synchronization.",
-        "category": "showcase",
-        "tags": ["#Golang", "#DistributedSystems", "#OpenSource"],
+        "summary": "S3-compatible distributed storage engine featuring Reed-Solomon erasure coding, content-defined deduplication, chunking, and Raft consensus metadata synchronization.",
+        "category": "distributed",
+        "source_kind": "showcase",
         "facts": {
-            "tech": "Go, Raft, Erasure Coding",
-            "feature": "Survives disk failures with zero data loss via RS-erasure chunking",
+            "tech": "Go, Raft Consensus, Reed-Solomon Erasure Coding",
+            "tradeoff": "Trades minor CPU encoding overhead for 50% lower disk storage compared to 3x replication.",
+            "feature": "Survives multi-disk failures with zero data loss and deterministic recovery.",
         },
+        "tags": ["#Golang", "#DistributedSystems"],
     },
     {
-        "title": "Real-Time Enterprise Analytics Pipeline",
+        "title": "Real-Time Streaming Analytics Pipeline",
         "url": "https://github.com/aman179102",
-        "summary": "Low-latency streaming analytics engine processing millions of events using FastAPI, Kafka, Redis streams, TimescaleDB, and OpenTelemetry instrumentation.",
-        "category": "showcase",
-        "tags": ["#Python", "#FastAPI", "#SystemDesign"],
+        "summary": "Low-latency streaming analytics engine processing millions of events using Python, Kafka, Redis streams, TimescaleDB, and OpenTelemetry.",
+        "category": "architecture",
+        "source_kind": "showcase",
         "facts": {
-            "tech": "FastAPI, TimescaleDB, Kafka, WebSockets",
-            "feature": "Sub-millisecond event ingestion with real-time live push",
+            "tech": "Python, Kafka, TimescaleDB, Redis Streams",
+            "tradeoff": "Uses chunked batch inserts and continuous aggregates to prevent lock contention during write bursts.",
+            "feature": "Sub-millisecond event ingestion with real-time WebSocket client broadcast.",
         },
+        "tags": ["#SystemDesign", "#Backend"],
     },
     {
         "title": "PodVoice Studio: Local-First AI Podcast Engine",
         "url": "https://github.com/aman179102",
-        "summary": "Private, local-first studio for multi-speaker AI podcast generation, audio processing, and script synthesis running entirely on-device.",
-        "category": "showcase",
-        "tags": ["#AI", "#OpenSource", "#Python"],
+        "summary": "Private, on-device engine for multi-speaker AI podcast synthesis, audio processing, and script refinement running entirely local without third-party APIs.",
+        "category": "ai",
+        "source_kind": "showcase",
         "facts": {
-            "tech": "Python, Speech AI, Local-first GUI",
-            "feature": "100% private on-device podcast generation",
+            "tech": "Python, Local Audio Inference, Whisper, TTS",
+            "tradeoff": "Prioritizes local privacy and zero cloud fees over cloud GPU speed.",
+            "feature": "100% private, on-device audio processing pipeline.",
         },
+        "tags": ["#AIEngineering", "#Python"],
+    },
+)
+
+# Curated Engineering Deep Dives & Systems Architecture (40% distribution)
+ENGINEERING_DEEP_DIVES = (
+    {
+        "title": "LSM-Trees vs B+ Trees: The Real Write Amplification Trade-off",
+        "url": "https://github.com/aman179102",
+        "summary": "Why write-heavy databases like RocksDB and Cassandra pick Log-Structured Merge trees over traditional B+ trees. Sequential disk appends avoid random I/O at the cost of compaction read-amplification.",
+        "category": "database",
+        "source_kind": "deep_dive",
+        "facts": {
+            "core_concept": "Write Amplification & Sequential vs Random I/O",
+            "key_takeaway": "LSM-trees turn random writes into sequential disk appends via MemTable + SSTables. You pay for this later with compaction I/O and Bloom filter lookup penalties.",
+        },
+        "tags": ["#DatabaseInternals", "#SystemDesign"],
+    },
+    {
+        "title": "Go Runtime Scheduler: Under the Hood with the GMP Model",
+        "url": "https://github.com/aman179102",
+        "summary": "How the Go runtime multiplexes millions of goroutines across OS threads using G (Goroutine), M (OS Machine Thread), and P (Logical Processor) work-stealing queues.",
+        "category": "golang",
+        "source_kind": "deep_dive",
+        "facts": {
+            "core_concept": "M:N Work-Stealing Scheduling & Syscall Preemption",
+            "key_takeaway": "When a goroutine blocks in a syscall, the runtime detaches M from P so other goroutines keep running on that P without starving the thread pool.",
+        },
+        "tags": ["#Golang", "#Concurrency"],
+    },
+    {
+        "title": "Raft Consensus: Why Leader Election Must Prevent Split-Brain",
+        "url": "https://github.com/aman179102",
+        "summary": "How randomized election timers, majority quorum checks, and term numbers prevent dual-leader split-brain scenarios during transient network partitions.",
+        "category": "distributed",
+        "source_kind": "deep_dive",
+        "facts": {
+            "core_concept": "Quorum Intersection & Term Invalidation",
+            "key_takeaway": "Two leaders cannot exist simultaneously because any valid leader must win votes from a strict majority (N/2 + 1) of the cluster.",
+        },
+        "tags": ["#DistributedSystems", "#SystemDesign"],
+    },
+    {
+        "title": "Linux I/O Evolution: From epoll to io_uring Zero-Copy",
+        "url": "https://github.com/aman179102",
+        "summary": "Why next-gen high-throughput backends are adopting io_uring over epoll: dual ring buffers shared between user space and kernel eliminate syscall context switch overhead entirely.",
+        "category": "linux",
+        "source_kind": "deep_dive",
+        "facts": {
+            "core_concept": "Kernel-User Shared Ring Buffers & Asynchronous Batching",
+            "key_takeaway": "Epoll still requires a syscall per ready event batch; io_uring achieves zero-copy asynchronous I/O submission without entering the kernel on every operation.",
+        },
+        "tags": ["#LinuxKernel", "#HighPerformance"],
+    },
+    {
+        "title": "Postgres MVCC Internals: How Tuple Versioning Impacts Write Latency",
+        "url": "https://github.com/aman179102",
+        "summary": "How PostgreSQL implements Multi-Version Concurrency Control using xmin/xmax tuple headers, and why high-frequency UPDATE workloads cause table bloat without autovacuum tuning.",
+        "category": "database",
+        "source_kind": "deep_dive",
+        "facts": {
+            "core_concept": "Tuple Immutability, Dead Tuples & HOT (Heap-Only Tuples)",
+            "key_takeaway": "Every UPDATE writes a new physical row version. Without Heap-Only Tuple (HOT) optimizations, every updated row forces index write amplification.",
+        },
+        "tags": ["#PostgreSQL", "#DatabaseInternals"],
+    },
+    {
+        "title": "Cache Stampede Mitigation: Singleflight vs Probabilistic Early Expiration",
+        "url": "https://github.com/aman179102",
+        "summary": "When hot cache keys expire under heavy traffic, thousands of concurrent requests hammer the backend database simultaneously. How singleflight request coalescing eliminates the thundering herd.",
+        "category": "architecture",
+        "source_kind": "deep_dive",
+        "facts": {
+            "core_concept": "Request Coalescing (Singleflight) & XFetch Algorithm",
+            "key_takeaway": "Singleflight suppresses duplicate concurrent in-flight requests, ensuring only one worker queries the database while other requests wait on the same shared channel.",
+        },
+        "tags": ["#SystemDesign", "#Backend"],
+    },
+)
+
+# Curated Technical Discussions (10% distribution)
+DEVELOPER_DISCUSSIONS = (
+    {
+        "title": "Architectural Dilemma: Read Replicas vs Sharding Threshold",
+        "url": "https://github.com/aman179102",
+        "summary": "When scaling a database encountering read/write bottlenecks, when is moving to application-level sharding genuinely warranted versus tuning connection pooling and read replicas?",
+        "category": "database",
+        "source_kind": "discussion",
+        "facts": {
+            "core_concept": "Operational Tax of Sharding vs Replication Limits",
+            "key_takeaway": "Sharding adds cross-shard joins, 2PC distributed transactions, and rebalancing complexity. Teams often shard before exhausting index tuning, read-replicas, and caching.",
+        },
+        "tags": ["#DatabaseArchitecture", "#SystemDesign"],
+    },
+    {
+        "title": "Eventual Consistency vs Linearizability in Production",
+        "url": "https://github.com/aman179102",
+        "summary": "Many teams implement distributed consensus or 2-phase commits where idempotent retries and eventual consistency would cut tail latency by 80%. Where do you draw the line?",
+        "category": "distributed",
+        "source_kind": "discussion",
+        "facts": {
+            "core_concept": "Consistency Level Trade-offs and Tail Latency Tax",
+            "key_takeaway": "Linearizability requires round-trip consensus coordination on every read/write. Eventual consistency trades absolute freshness for resilient local execution.",
+        },
+        "tags": ["#DistributedSystems", "#Architecture"],
+    },
+)
+
+# Open Source Discoveries (5% distribution)
+OPEN_SOURCE_DISCOVERIES = (
+    {
+        "title": "Litestream: Streaming SQLite Replication to S3",
+        "url": "https://github.com/benbjohnson/litestream",
+        "summary": "Litestream runs as a separate background process that continuously streams WAL changes from SQLite directly to cloud storage, turning single-node SQLite into a disaster-proof database.",
+        "category": "dev",
+        "source_kind": "oss_discovery",
+        "facts": {
+            "core_concept": "WAL-Level Continuous Point-in-Time Recovery",
+            "key_takeaway": "Replicates at the 4KB page level rather than SQL statements, keeping overhead negligible without modifying application code.",
+        },
+        "tags": ["#OpenSource", "#SQLite"],
+    },
+    {
+        "title": "Dragonfly: Modern Multi-Threaded Redis Alternative",
+        "url": "https://github.com/dragonflydb/dragonfly",
+        "summary": "A drop-in Redis replacement built with a shared-nothing multi-threaded architecture using io_uring, achieving 25x throughput and higher memory efficiency on multi-core servers.",
+        "category": "database",
+        "source_kind": "oss_discovery",
+        "facts": {
+            "core_concept": "Shared-Nothing Multi-Threading & io_uring",
+            "key_takeaway": "Redis is single-threaded per instance. Dragonfly uses core-pinned fibers and VHash structures to avoid global mutex contention on large machines.",
+        },
+        "tags": ["#HighPerformance", "#OpenSource"],
     },
 )
 
@@ -134,6 +273,7 @@ def _fetch_feed(client: httpx.Client, spec: FeedSpec) -> list[StoryItem]:
                         summary=desc,
                         published_at=pub,
                         category=spec.category,
+                        source_kind="news",
                         score=spec.weight,
                     )
                 )
@@ -156,31 +296,56 @@ def _fetch_feed(client: httpx.Client, spec: FeedSpec) -> list[StoryItem]:
                     summary=summary,
                     published_at=pub,
                     category=spec.category,
+                    source_kind="news",
                     score=spec.weight,
                 )
             )
     return items
 
 
-def fetch_all_stories(settings: Settings, include_showcase: bool = False) -> list[Story]:
-    """Fetch stories from feeds concurrently."""
+def fetch_all_stories(settings: Settings, include_showcase: bool = False, format_filter: str | None = None) -> list[Story]:
+    """
+    Fetches candidate stories across diverse formats adhering to Section 14:
+    - 40% original engineering insights / deep dives
+    - 25% project showcases & build in public
+    - 20% verified technology news (with full article text extraction)
+    - 10% developer discussions
+    - 5% open-source discoveries
+    """
     stories: list[Story] = []
 
-    if include_showcase:
+    # Handle explicit showcase request
+    if include_showcase or format_filter == "showcase":
         proj = random.choice(PERSONAL_PROJECTS)
         item = StoryItem(
             source=settings.author_name,
             title=proj["title"],
             url=proj["url"],
             summary=proj["summary"],
-            category="showcase",
+            category=proj["category"],
             source_kind="showcase",
             score=1.5,
             extra={"tags": proj["tags"]},
         )
         return [Story(item=item, sources=[SourceRef(settings.author_name, proj["url"])], facts=proj["facts"])]
 
-    with httpx.Client(headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; x64) AppleWebKit/537.36"}) as client:
+    # Handle deep dives
+    if format_filter == "deep_dive":
+        dive = random.choice(ENGINEERING_DEEP_DIVES)
+        item = StoryItem(
+            source=settings.author_name,
+            title=dive["title"],
+            url=dive["url"],
+            summary=dive["summary"],
+            category=dive["category"],
+            source_kind="deep_dive",
+            score=1.4,
+            extra={"tags": dive["tags"]},
+        )
+        return [Story(item=item, sources=[SourceRef(settings.author_name, dive["url"])], facts=dive["facts"])]
+
+    # Fetch live RSS feeds for verified news
+    with httpx.Client(headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"}) as client:
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
             futures = [pool.submit(_fetch_feed, client, spec) for spec in FEEDS]
             for fut in concurrent.futures.as_completed(futures):
@@ -194,5 +359,58 @@ def fetch_all_stories(settings: Settings, include_showcase: bool = False) -> lis
                         )
                 except Exception as exc:
                     logger.debug("Error collecting feed items: %s", exc)
+
+    # Intersperse curated deep dives, showcases, discussions, and OSS discoveries
+    for dive in ENGINEERING_DEEP_DIVES:
+        item = StoryItem(
+            source="Engineering Deep Dive",
+            title=dive["title"],
+            url=dive["url"],
+            summary=dive["summary"],
+            category=dive["category"],
+            source_kind="deep_dive",
+            score=1.35,
+            extra={"tags": dive["tags"]},
+        )
+        stories.append(Story(item=item, sources=[SourceRef("Engineering Insight", dive["url"])], facts=dive["facts"]))
+
+    for proj in PERSONAL_PROJECTS:
+        item = StoryItem(
+            source=settings.author_name,
+            title=proj["title"],
+            url=proj["url"],
+            summary=proj["summary"],
+            category=proj["category"],
+            source_kind="showcase",
+            score=1.25,
+            extra={"tags": proj["tags"]},
+        )
+        stories.append(Story(item=item, sources=[SourceRef(settings.author_name, proj["url"])], facts=proj["facts"]))
+
+    for disc in DEVELOPER_DISCUSSIONS:
+        item = StoryItem(
+            source="System Design Discussion",
+            title=disc["title"],
+            url=disc["url"],
+            summary=disc["summary"],
+            category=disc["category"],
+            source_kind="discussion",
+            score=1.1,
+            extra={"tags": disc["tags"]},
+        )
+        stories.append(Story(item=item, sources=[SourceRef("Architecture Discussion", disc["url"])], facts=disc["facts"]))
+
+    for oss in OPEN_SOURCE_DISCOVERIES:
+        item = StoryItem(
+            source="Open Source Discovery",
+            title=oss["title"],
+            url=oss["url"],
+            summary=oss["summary"],
+            category=oss["category"],
+            source_kind="oss_discovery",
+            score=1.15,
+            extra={"tags": oss["tags"]},
+        )
+        stories.append(Story(item=item, sources=[SourceRef("Open Source", oss["url"])], facts=oss["facts"]))
 
     return stories

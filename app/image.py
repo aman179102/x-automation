@@ -5,6 +5,7 @@ import logging
 import random
 import urllib.parse
 from pathlib import Path
+from typing import Optional
 
 import httpx
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
@@ -32,14 +33,17 @@ def _font(settings: Settings, name: str, size: int) -> ImageFont.FreeTypeFont | 
 
 
 def _fetch_pollinations_image(prompt: str) -> bytes | None:
-    """Fetch 100% royalty-free AI image from Pollinations.ai without API key."""
-    clean_prompt = prompt.strip() or "cyberpunk digital matrix abstract data cloud server technology dark mode 4k"
+    """
+    Fetch royalty-free contextual illustration from Pollinations.ai.
+    Enforces clean, minimalist composition without futuristic neon clutter.
+    """
+    clean_prompt = prompt.strip() or "minimalist clean technical diagram architecture dark slate modern 4k"
     encoded_prompt = urllib.parse.quote(clean_prompt)
     seed = random.randint(1000, 999999)
     url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1200&height=675&nologo=true&seed={seed}"
 
     try:
-        with httpx.Client(timeout=25.0) as client:
+        with httpx.Client(timeout=20.0) as client:
             resp = client.get(url)
             if resp.status_code == 200 and len(resp.content) > 5000:
                 return resp.content
@@ -48,123 +52,66 @@ def _fetch_pollinations_image(prompt: str) -> bytes | None:
     return None
 
 
-def _fetch_pexels_image(query: str, api_key: str) -> bytes | None:
-    """Fetch high-res royalty-free photo from Pexels API."""
-    if not api_key:
-        return None
-    url = f"https://api.pexels.com/v1/search?query={urllib.parse.quote(query)}&per_page=1&orientation=landscape"
-    headers = {"Authorization": api_key}
-    try:
-        with httpx.Client(timeout=15.0) as client:
-            res = client.get(url, headers=headers)
-            if res.status_code == 200:
-                data = res.json()
-                photos = data.get("photos", [])
-                if photos:
-                    img_url = photos[0]["src"].get("large2x") or photos[0]["src"]["large"]
-                    img_res = client.get(img_url)
-                    if img_res.status_code == 200:
-                        return img_res.content
-    except Exception as exc:
-        logger.warning("Pexels image fetch failed: %s", exc)
-    return None
-
-
-def _create_fallback_gradient(category: str) -> Image.Image:
-    """Create a dark, sleek cyber-tech gradient background."""
-    img = Image.new("RGB", (WIDTH, HEIGHT), (11, 15, 25))
-    draw = ImageDraw.Draw(img)
-
-    accent_colors = {
-        "security": (220, 38, 38),
-        "ai": (124, 58, 237),
-        "dev": (16, 185, 129),
-        "hardware": (245, 158, 11),
-        "showcase": (14, 165, 233),
-        "tech": (59, 130, 246),
+def _get_category_accent(category: str) -> tuple[int, int, int]:
+    accents = {
+        "golang": (0, 173, 216),        # Go Cyan
+        "database": (51, 103, 145),      # Postgres Blue
+        "distributed": (16, 185, 129),   # Emerald
+        "architecture": (99, 102, 241),  # Indigo
+        "ai": (139, 92, 246),            # Violet
+        "linux": (245, 158, 11),         # Amber
+        "dev": (14, 165, 233),           # Sky
+        "showcase": (16, 185, 129),      # Emerald
+        "tech": (71, 85, 105),           # Slate
     }
-    accent = accent_colors.get(category.lower(), (59, 130, 246))
-
-    # Draw ambient glowing radial ellipses
-    for radius in range(400, 50, -50):
-        alpha = int(25 * (radius / 400))
-        bbox = [100 - radius, 100 - radius, 100 + radius, 100 + radius]
-        draw.ellipse(bbox, fill=(accent[0] // 3, accent[1] // 3, accent[2] // 3))
-
-    for radius in range(500, 100, -60):
-        bbox = [WIDTH - radius, HEIGHT - radius, WIDTH + radius, HEIGHT + radius]
-        draw.ellipse(bbox, fill=(accent[0] // 4, accent[1] // 4, accent[2] // 4))
-
-    return img.filter(ImageFilter.GaussianBlur(40))
+    return accents.get(category.lower(), (99, 102, 241))
 
 
-def render_branded_image(draft: PostDraft, settings: Settings, output_path: Path) -> Path:
+def _draw_clean_tech_card(draft: PostDraft, settings: Settings, base_bg: Image.Image | None = None) -> Image.Image:
     """
-    Renders a high-impact, 100% royalty-free visual card:
-    1. Downloads AI / Stock background matching the topic.
-    2. Overlays sleek dark glassmorphism banner.
-    3. Adds headline and Aman Kumar's personal branding badge for reputation/SEO.
+    Renders an engineering-first technical card with readable typography,
+    high contrast, clean layout, and Aman Kumar's personal branding.
+    Avoids repetitive futuristic blue/neon tropes per Section 15.
     """
-    bg_bytes: bytes | None = None
+    accent = _get_category_accent(draft.category)
 
-    # Step 1: Obtain background image
-    if settings.image_mode == "stock" and settings.pexels_api_key:
-        query = draft.story.category if draft.story else "cyber tech cloud"
-        bg_bytes = _fetch_pexels_image(query, settings.pexels_api_key)
+    if base_bg is None:
+        # Dark slate modern canvas
+        img = Image.new("RGB", (WIDTH, HEIGHT), (13, 17, 23))
+        draw = ImageDraw.Draw(img)
 
-    if not bg_bytes and settings.image_mode in ("ai", "stock"):
-        # Build prompt tailored to the story
-        story_cat = draft.category or "tech"
-        headline = draft.image_title or (draft.story.title if draft.story else "Tech Innovation")
-        visual_desc = draft.visual_prompt or f"sleek futuristic {story_cat} technology scene, dark aesthetic, glowing neon accents, 3d render"
-        ai_prompt = f"{visual_desc}, cinematic lighting, 8k octane render, dark modern minimal composition, no text"
-        bg_bytes = _fetch_pollinations_image(ai_prompt)
+        # Subtle subtle technical grid / accent glow
+        for x in range(0, WIDTH, 80):
+            draw.line([(x, 0), (x, HEIGHT)], fill=(22, 27, 34), width=1)
+        for y in range(0, HEIGHT, 80):
+            draw.line([(0, y), (WIDTH, y)], fill=(22, 27, 34), width=1)
 
-    if bg_bytes:
-        try:
-            base_img = Image.open(io.BytesIO(bg_bytes)).convert("RGB")
-            base_img = base_img.resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS)
-            # Slightly dim the background so text pops clearly
-            enhancer = ImageEnhance.Brightness(base_img)
-            base_img = enhancer.enhance(0.55)
-        except Exception as exc:
-            logger.warning("Failed to decode downloaded background: %s", exc)
-            base_img = _create_fallback_gradient(draft.category)
+        # Subtle accent border top line
+        draw.line([(0, 0), (WIDTH, 0)], fill=accent, width=6)
     else:
-        base_img = _create_fallback_gradient(draft.category)
+        img = base_bg
 
-    # Step 2: Overlay glassmorphism lower card & border
     overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
-    # Subtle top category badge
-    badge_y = 50
-    cat_text = f"●  {draft.category.upper()}"
-    cat_font = _font(settings, "Inter-SemiBold.ttf", 22)
-    draw.rounded_rectangle([60, badge_y, 240, badge_y + 44], radius=8, fill=(17, 24, 39, 210), outline=(55, 65, 81, 230), width=1)
-    draw.text((80, badge_y + 8), cat_text, font=cat_font, fill=(56, 189, 248, 255))
+    # 1. Category Pill Badge
+    badge_y = 55
+    cat_name = draft.category.upper()
+    cat_font = _font(settings, "Inter-SemiBold.ttf", 20)
+    draw.rounded_rectangle([70, badge_y, 250, badge_y + 40], radius=6, fill=(22, 27, 34, 230), outline=(48, 54, 61, 255), width=1)
+    draw.text((90, badge_y + 8), f"●  {cat_name}", font=cat_font, fill=accent)
 
-    # Dark translucent footer card
-    card_top = 370
-    card_h = 245
-    draw.rounded_rectangle(
-        [50, card_top, WIDTH - 50, card_top + card_h],
-        radius=16,
-        fill=(10, 15, 29, 230),
-        outline=(51, 65, 85, 220),
-        width=2,
-    )
-
-    # Headline on the card
-    headline_font = _font(settings, "Inter-Bold.ttf", 46)
-    headline_text = draft.image_title or (draft.story.title if draft.story else "")
-    # Wrap headline if needed
-    words = headline_text.split()
+    # 2. Main Title (Inter-Bold)
+    title_font = _font(settings, "Inter-Bold.ttf", 44)
+    raw_title = draft.image_title or (draft.story.title if draft.story else "Systems Engineering Insight")
+    
+    # Word wrap headline
+    words = raw_title.split()
     lines: list[str] = []
     curr = ""
     for w in words:
         test = f"{curr} {w}".strip()
-        if draw.textlength(test, font=headline_font) <= 1040:
+        if draw.textlength(test, font=title_font) <= 1040:
             curr = test
         else:
             if curr:
@@ -173,27 +120,122 @@ def render_branded_image(draft: PostDraft, settings: Settings, output_path: Path
     if curr:
         lines.append(curr)
 
-    lines = lines[:2]  # Limit to 2 lines max
-    text_y = card_top + 30
+    lines = lines[:2]
+    title_y = 130
     for line in lines:
-        draw.text((80, text_y), line, font=headline_font, fill=(248, 250, 252, 255))
-        text_y += 56
+        draw.text((70, title_y), line, font=title_font, fill=(240, 246, 252, 255))
+        title_y += 56
 
-    # Bottom branding bar
-    divider_y = card_top + 165
-    draw.line([(80, divider_y), (WIDTH - 80, divider_y)], fill=(51, 65, 85, 180), width=1)
+    # 3. Technical Mechanism / Architectural Takeaway Box
+    takeaway = draft.technical_takeaway or (draft.image_facts[0] if draft.image_facts else "")
+    if takeaway and takeaway.upper() != draft.category.upper():
+        box_y = title_y + 25
+        draw.rounded_rectangle(
+            [70, box_y, WIDTH - 70, box_y + 110],
+            radius=10,
+            fill=(22, 27, 34, 220),
+            outline=(48, 54, 61, 240),
+            width=1,
+        )
+        # Accent left indicator stripe
+        draw.rounded_rectangle([70, box_y, 76, box_y + 110], radius=3, fill=accent)
 
-    brand_font = _font(settings, "JetBrainsMono-Medium.ttf", 20)
-    brand_handle_font = _font(settings, "Inter-SemiBold.ttf", 20)
+        takeaway_label_font = _font(settings, "JetBrainsMono-Medium.ttf", 16)
+        takeaway_font = _font(settings, "Inter-Regular.ttf", 22)
+        draw.text((95, box_y + 14), "CORE ARCHITECTURAL MECHANISM / TAKEAWAY", font=takeaway_label_font, fill=(139, 148, 158, 255))
+        
+        # Wrap takeaway text
+        t_words = takeaway.split()
+        t_lines: list[str] = []
+        t_curr = ""
+        for w in t_words:
+            test = f"{t_curr} {w}".strip()
+            if draw.textlength(test, font=takeaway_font) <= 980:
+                t_curr = test
+            else:
+                if t_curr:
+                    t_lines.append(t_curr)
+                t_curr = w
+        if t_curr:
+            t_lines.append(t_curr)
+        
+        t_y = box_y + 44
+        for tl in t_lines[:2]:
+            draw.text((95, t_y), tl, font=takeaway_font, fill=(225, 232, 240, 255))
+            t_y += 30
 
-    brand_lead = "⚡ Curated by" if not (draft.story and draft.story.is_showcase) else "🚀 Open Source Project by"
-    brand_sig = f"{brand_lead} {settings.author_name} ({settings.author_handle}) | {settings.author_title}"
-    draw.text((80, divider_y + 22), brand_sig, font=brand_handle_font, fill=(148, 163, 184, 255))
+    # 4. Bottom Footer: Personal Branding
+    footer_y = HEIGHT - 85
+    draw.line([(70, footer_y), (WIDTH - 70, footer_y)], fill=(33, 38, 45, 255), width=1)
 
-    # Composite overlay on base image
-    final_img = Image.alpha_composite(base_img.convert("RGBA"), overlay).convert("RGB")
+    brand_lead = "🚀 Open Source Project by" if draft.format_kind == "showcase" else "⚡ Curated by"
+    brand_font = _font(settings, "Inter-SemiBold.ttf", 20)
+    brand_sig = f"{brand_lead} {settings.author_name} ({settings.author_handle})  |  {settings.author_title}"
+    draw.text((70, footer_y + 24), brand_sig, font=brand_font, fill=(139, 148, 158, 255))
+
+    final_img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+    return final_img
+
+
+def render_branded_image(draft: PostDraft, settings: Settings, output_path: Path) -> Optional[Path]:
+    """
+    Renders high-quality visual adhering to Section 15:
+    - Text-only posts return None (no forced useless graphics).
+    - Diverse visual aesthetics (clean architectural layouts, not repetitive neon).
+    - Accurate representation of the subject.
+    """
+    # 1. Check if post should be text-only
+    if not draft.has_image or draft.format_kind == "discussion":
+        logger.info("Post format is text-only (discussion or diagram adds no value).")
+        return None
+
+    bg_img: Optional[Image.Image] = None
+
+    # 2. For verified news, optionally fetch a targeted contextual illustration
+    if draft.format_kind == "verified_news_analysis" and settings.image_mode == "ai":
+        clean_desc = draft.visual_prompt or f"clean minimalist technical schematic {draft.category} modern dark slate"
+        prompt = f"{clean_desc}, minimalist clean technical composition, dark slate background, high contrast, no text, no neon glowing clutter, 4k"
+        bg_bytes = _fetch_pollinations_image(prompt)
+        if bg_bytes:
+            try:
+                raw_bg = Image.open(io.BytesIO(bg_bytes)).convert("RGB")
+                raw_bg = raw_bg.resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS)
+                # Dim background so typography remains 100% readable
+                enhancer = ImageEnhance.Brightness(raw_bg)
+                bg_img = enhancer.enhance(0.40)
+            except Exception as exc:
+                logger.warning("Failed to decode background visual: %s", exc)
+                bg_img = None
+
+    # 3. Render clean technical card
+    final_card = _draw_clean_tech_card(draft, settings, bg_img)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    final_img.save(str(output_path), "JPEG", quality=92)
-    logger.info("Saved branded image to %s", output_path)
+    final_card.save(str(output_path), "JPEG", quality=92)
+    logger.info("Rendered high-quality technical graphic to %s", output_path)
     return output_path
+
+
+def validate_image_consistency(draft: PostDraft, image_path: Optional[Path]) -> bool:
+    """
+    Validates that the generated image file is intact, readable,
+    and appropriate for the post per Section 15.
+    """
+    if image_path is None:
+        return True
+
+    if not image_path.exists() or image_path.stat().st_size < 1000:
+        logger.warning("Image file %s does not exist or is too small.", image_path)
+        return False
+
+    try:
+        with Image.open(image_path) as img:
+            w, h = img.size
+            if w < 600 or h < 300:
+                logger.warning("Image dimensions too small: %dx%d", w, h)
+                return False
+    except Exception as exc:
+        logger.warning("Image validation failed: %s", exc)
+        return False
+
+    return True

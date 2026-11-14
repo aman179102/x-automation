@@ -11,16 +11,25 @@ from app.models import Story
 logger = logging.getLogger(__name__)
 
 BLOCKED_TERMS = {
-    "election", "trump", "biden", "harris", "modi", "politics", "congress",
-    "parliament", "war", "gaza", "israel", "ukraine", "russia", "military",
-    "murder", "shooting", "porn", "nsfw", "casino", "gambling",
-    "bitcoin price", "crypto pump", "token sale", "memecoin", "airdrop",
-    "celebrity", "bollywood", "hollywood", "cricket", "football", "affair", "scandal",
+    "presidential election", "general election", "us election", "trump", "biden",
+    "harris", "modi", "politics", "congress", "parliament", "war", "gaza",
+    "israel", "ukraine", "russia", "military", "murder", "shooting", "porn",
+    "nsfw", "casino", "gambling", "bitcoin price", "crypto pump", "token sale",
+    "memecoin", "airdrop", "celebrity", "bollywood", "hollywood", "cricket",
+    "football", "affair", "scandal",
 }
 
 
 def is_allowed_topic(story: Story) -> bool:
     content = f"{story.title} {story.summary}".lower()
+
+    # Allow distributed systems leader election
+    if "leader election" in content or "raft" in content or "paxos" in content:
+        pass
+    elif "election" in content:
+        logger.info("Blocked political election content: %s", story.title)
+        return False
+
     for term in BLOCKED_TERMS:
         pattern = rf"\b{re.escape(term)}\b" if " " not in term else re.escape(term)
         if re.search(pattern, content, re.IGNORECASE):

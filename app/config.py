@@ -23,9 +23,8 @@ def env_bool(name: str, default: bool) -> bool:
 
 
 DEFAULT_GEMINI_MODELS = (
-    "gemini-3.5-flash",
     "gemini-3.5-flash-lite",
-    "gemini-3.8-flash",
+    "gemini-3.5-flash",
 )
 DEFAULT_GROQ_MODELS = (
     "openai/gpt-oss-120b",
