@@ -3,10 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from app.ai import generate_json
 from app.config import Settings
@@ -33,20 +34,20 @@ You are writing a short, insightful public reply to a fellow developer's tweet o
 
 STRICT EDITORIAL RULES:
 1. 100% Professional, crisp ENGLISH.
-2. 1 to 2 sentences MAXIMUM (strictly under 200 characters).
+2. 1 to 2 sentences MAXIMUM (strictly under 190 characters).
 3. VALUE-FIRST & CONTEXT-SPECIFIC:
-   - Match the specific technical context of the tweet.
-   - Introduce a relevant architectural angle (e.g., connection pooling limits, cache invalidation race conditions, backpressure handling, schema migrations under load, idempotency keys, singleflight request coalescing, lock contention).
-4. FORBIDDEN PATTERNS:
-   - DO NOT repeat catchphrases like "tail latency" or "network partitions" unless specifically talking about networking/consensus.
-   - Never use generic praise ("Great post", "I agree", "Spot on", "100%", "Well said", "Nice breakdown").
-   - Never pitch or promote yourself ("check out my repo", "I built", "follow me").
-   - No hashtags, no exclamation marks overload, zero or max 1 emoji.
+   - Directly respond to the specific topic and technical trade-off raised in the target tweet.
+   - Add a concrete, actionable engineering angle (e.g., connection pooling limits, cache invalidation races, backpressure handling, schema migrations, idempotency keys, singleflight request coalescing, lock contention).
+4. FORBIDDEN:
+   - DO NOT repeat canned catchphrases ("tail latency", "network partitions", "serialization overhead") unless the tweet is strictly about that specific subject.
+   - NEVER use generic praise ("Great post", "I agree", "Spot on", "100%", "Well said", "Nice point").
+   - NEVER pitch or self-promote ("check out my repo", "I built", "follow me").
+   - No hashtags, no exclamation marks overload, 0 emojis.
 5. Tone: Pragmatic, humble, and technically authoritative like a real senior systems engineer.
 
-Return JSON format only:
+Return JSON format strictly:
 {
-  "reply": "Your concise technical perspective (under 200 characters).",
+  "reply": "Your concise technical perspective (strictly under 190 characters).",
   "reasoning": "Brief explanation of why this adds technical value."
 }"""
 
@@ -59,6 +60,7 @@ class EngagementCandidate:
     text: str
     likes: int
     created_at: str
+    score: float = 0.0
     suggested_reply: str = ""
     reasoning: str = ""
 
@@ -95,56 +97,98 @@ def can_reply_now(state: dict[str, Any], settings: Settings) -> tuple[bool, str]
     now = datetime.now(timezone.utc)
     today = now.date().isoformat()
 
-    # Check daily limit (default 10 replies max)
     daily_replies = [
         r for r in state.get("replies", [])
         if r.get("replied_at", "").startswith(today)
     ]
-    if len(daily_replies) >= 10:
-        return False, f"Daily engagement limit of 10 reached ({len(daily_replies)} today)."
+    if len(daily_replies) >= 8:
+        return False, f"Daily engagement limit of 8 reached ({len(daily_replies)} today)."
 
-    # Check spacing (minimum 25 minutes between replies)
     last_str = state.get("last_replied_at")
     if last_str:
         last_dt = datetime.fromisoformat(last_str)
-        if (now - last_dt) < timedelta(minutes=25):
-            rem = int((timedelta(minutes=25) - (now - last_dt)).total_seconds() // 60)
-            return False, f"Must wait {rem} more minutes between replies for safety."
+        if (now - last_dt) < timedelta(minutes=30):
+            rem = int((timedelta(minutes=30) - (now - last_dt)).total_seconds() // 60)
+            return False, f"Spacing cooldown: wait {rem} more minutes between replies."
 
     return True, "Ready for engagement."
 
 
-def is_eligible_target(tweet: Any, state: dict[str, Any], settings: Settings) -> bool:
+def is_eligible_target(tweet: Any, state: dict[str, Any], settings: Settings) -> tuple[bool, str]:
     author = tweet.user.screen_name.lower().strip("@")
     my_handle = settings.author_handle.lower().strip("@")
 
     # Don't reply to self
     if author == my_handle:
-        return False
+        return False, "Target is self"
 
     # Don't reply to same tweet twice
-    replied_ids = {r["target_tweet_id"] for r in state.get("replies", [])}
+    replied_ids = {str(r["target_tweet_id"]) for r in state.get("replies", [])}
     if str(tweet.id) in replied_ids:
-        return False
+        return False, "Already replied to tweet"
 
-    # Author cooldown: Don't reply to same user more than once in 48h
+    # Author cooldown: Don't reply to same user more than once in 72h
     now = datetime.now(timezone.utc)
     for r in state.get("replies", []):
         if r.get("target_author", "").lower() == author:
             replied_dt = datetime.fromisoformat(r["replied_at"])
-            if (now - replied_dt) < timedelta(hours=48):
-                return False
+            if (now - replied_dt) < timedelta(hours=72):
+                return False, f"Author @{author} in 72h cooldown"
 
-    # Quality filter: Must have at least 2 likes or 1 RT (not a dead bot)
-    if (tweet.favorite_count or 0) < 1 and (tweet.retweet_count or 0) < 1:
-        return False
+    # Recency check: Avoid old or resolved discussions (> 48 hours old)
+    created_str = getattr(tweet, "created_at", None)
+    if created_str:
+        try:
+            # Twikit returns standard RFC 2822 or ISO format
+            if hasattr(tweet, "created_at_datetime"):
+                created_dt = tweet.created_at_datetime
+            else:
+                from email.utils import parsedate_to_datetime
+                created_dt = parsedate_to_datetime(str(created_str))
+            if created_dt.tzinfo is None:
+                created_dt = created_dt.replace(tzinfo=timezone.utc)
+            if (now - created_dt) > timedelta(hours=48):
+                return False, "Tweet older than 48 hours"
+        except Exception:
+            pass
 
-    # Filter out text too short or containing spam
+    # Engagement quality threshold
+    favs = tweet.favorite_count or 0
+    if favs < 2:
+        return False, "Insufficient engagement (< 2 likes)"
+
+    # Text length & noise filter
     text = tweet.text.lower()
-    if len(text) < 40 or "giveaway" in text or "airdrop" in text or "crypto" in text:
-        return False
+    if len(text) < 45:
+        return False, "Text too short for technical discussion"
 
-    return True
+    spam_terms = ["giveaway", "airdrop", "crypto", "presale", "whitelist", "dm me", "follow back", "hiring"]
+    if any(s in text for s in spam_terms):
+        return False, "Contains spam or non-technical promotional terms"
+
+    return True, "Eligible"
+
+
+def score_candidate(candidate: EngagementCandidate) -> float:
+    """Ranks candidates by technical relevance, recency, and discussion depth."""
+    text_lower = candidate.text.lower()
+    score = 1.0
+
+    tech_terms = [
+        "architecture", "distributed", "database", "postgres", "concurrency",
+        "golang", "fastapi", "latency", "scale", "performance", "cache",
+        "streaming", "kafka", "raft", "storage", "microservices",
+    ]
+    term_matches = sum(1 for t in tech_terms if t in text_lower)
+    score += term_matches * 0.4
+
+    # Engagement bonus
+    if candidate.likes >= 10:
+        score += 0.5
+    elif candidate.likes >= 5:
+        score += 0.25
+
+    return round(score, 2)
 
 
 async def find_candidates(settings: Settings, state: dict[str, Any], limit: int = 5) -> list[EngagementCandidate]:
@@ -167,42 +211,97 @@ async def find_candidates(settings: Settings, state: dict[str, Any], limit: int 
                     continue
                 seen_ids.add(str(t.id))
 
-                if is_eligible_target(t, state, settings):
-                    candidates.append(
-                        EngagementCandidate(
-                            tweet_id=str(t.id),
-                            author=t.user.screen_name,
-                            author_id=str(t.user.id),
-                            text=normalize_space(t.text),
-                            likes=t.favorite_count or 0,
-                            created_at=str(t.created_at),
-                        )
+                eligible, reason = is_eligible_target(t, state, settings)
+                if eligible:
+                    cand = EngagementCandidate(
+                        tweet_id=str(t.id),
+                        author=t.user.screen_name,
+                        author_id=str(t.user.id),
+                        text=normalize_space(t.text),
+                        likes=t.favorite_count or 0,
+                        created_at=str(getattr(t, "created_at", "")),
                     )
-                if len(candidates) >= limit:
-                    break
+                    cand.score = score_candidate(cand)
+                    candidates.append(cand)
         except Exception as exc:
             logger.debug("Error searching topic '%s': %s", topic, exc)
 
-        if len(candidates) >= limit:
+        if len(candidates) >= limit * 2:
             break
 
-    return candidates
+    # Rank candidates by score
+    candidates.sort(key=lambda c: c.score, reverse=True)
+    return candidates[:limit]
 
 
-def draft_reply(tweet_text: str, settings: Settings) -> tuple[str, str]:
-    user_msg = f"Target Tweet by developer:\n\"{tweet_text}\"\n\nWrite a senior technical reply contribution:"
-    res = generate_json(settings, ENGAGEMENT_PROMPT, user_msg)
-    if res and res.get("reply"):
-        reply = normalize_space(str(res["reply"]))
-        reason = str(res.get("reasoning", ""))
-        if twitter_length(reply) <= 240:
-            return reply, reason
-
-    # Fallback technical comment if AI returns too long
-    return (
-        "The hidden operational cost usually comes down to distributed tracing overhead and tail latency under partial network partitions.",
-        "Engineering trade-off observation",
+def draft_reply(tweet_text: str, settings: Settings, author: str = "") -> tuple[str, str]:
+    """
+    Generates a context-specific, senior technical reply.
+    STRICTLY SKIPS if AI generation fails: NEVER returns a hardcoded fallback string.
+    """
+    author_prefix = f"@{author}: " if author else ""
+    user_msg = (
+        f"Target Developer Tweet ({author_prefix}):\n"
+        f"\"{tweet_text}\"\n\n"
+        f"Draft a senior engineering perspective that directly addresses the architectural trade-off:"
     )
+
+    res = generate_json(settings, ENGAGEMENT_PROMPT, user_msg)
+    if not res or not isinstance(res, dict) or not res.get("reply"):
+        logger.warning("AI reply generation failed or timed out. Skipping reply (fail-closed).")
+        return "", "AI generation failed or service timed out (canned fallback disabled)."
+
+    reply = normalize_space(str(res["reply"]))
+    reason = str(res.get("reasoning", ""))
+
+    if twitter_length(reply) > 200:
+        logger.warning("Drafted reply exceeds 200 characters (%d chars). Skipping.", twitter_length(reply))
+        return "", f"Reply length {twitter_length(reply)} exceeds 200 characters."
+
+    return reply, reason
+
+
+def validate_reply_quality(
+    candidate: EngagementCandidate,
+    reply_text: str,
+    state: dict[str, Any],
+) -> tuple[bool, str]:
+    """
+    Final validation stage before publishing a reply:
+    1. Checks length.
+    2. Rejects generic canned replies or repetitive patterns.
+    3. Prevents repeating catchphrases across recent replies in history.
+    """
+    if not reply_text.strip():
+        return False, "Reply text is empty."
+
+    if twitter_length(reply_text) > 200:
+        return False, f"Reply length ({twitter_length(reply_text)}) exceeds limit."
+
+    # Check for forbidden praise or canned openings
+    forbidden_starters = ["great post", "nice point", "i agree", "spot on", "well said", "100%"]
+    reply_lower = reply_text.lower()
+    for f in forbidden_starters:
+        if reply_lower.startswith(f):
+            return False, f"Forbidden generic opening detected: '{f}'"
+
+    # Check against recent published replies in state to prevent repetition
+    recent_replies = [r.get("reply_text", "").lower() for r in state.get("replies", [])[-15:]]
+    for past in recent_replies:
+        # If the reply shares more than the first 25 characters with a previous reply, reject!
+        if len(reply_lower) >= 25 and reply_lower[:25] in past:
+            return False, "Reply opening too repetitive compared to recent published replies."
+
+    # Rejection of catchphrase loops: do not allow 'tail latency under network partitions'
+    if "tail latency under partial network partitions" in reply_lower:
+        return False, "Detected repetitive canned catchphrase loop."
+
+    return True, "Reply passed quality validation."
+
+
+def find_engagement_candidates(settings: Settings) -> list[EngagementCandidate]:
+    state = load_engagement_state(settings.state_dir)
+    return asyncio.run(find_candidates(settings, state, limit=6))
 
 
 async def post_live_reply(candidate: EngagementCandidate, reply_text: str, settings: Settings) -> str:

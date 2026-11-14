@@ -1,54 +1,212 @@
+import os
 import unittest
-from bs4 import BeautifulSoup
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
-from app.extractor import ExtractedArticle
-from app.models import PostDraft, Story, StoryItem
-from app.text import twitter_length
-from app.image import _draw_clean_tech_card, validate_image_consistency
 from app.config import Settings
+from app.engagement import EngagementCandidate, draft_reply, validate_reply_quality
+from app.image import (
+    _draw_clean_tech_card,
+    render_branded_image,
+    validate_image_consistency,
+)
+from app.models import PostDraft, Story, StoryItem
+from app.quality import evaluate_quality_gate
+from app.sources import PERSONAL_PROJECTS
+from app.text import twitter_length
+from app.verify import verify_draft_against_source
 
 
-class TestPublishingPipeline(unittest.TestCase):
-    def test_twitter_length_with_urls(self):
-        text = "Check out this project: https://github.com/aman179102/x-automation #OpenSource"
-        # URL counts as 23 characters
-        eff_len = twitter_length(text)
-        self.assertLessEqual(eff_len, 280)
-
-    def test_extracted_article_validation(self):
-        valid = ExtractedArticle(
-            url="https://example.com/blog/test",
-            title="Test",
-            text=" ".join(["word"] * 120),
-            is_valid=True,
-            word_count=120,
+class TestSecondPassCorrectness(unittest.TestCase):
+    def setUp(self):
+        self.settings = Settings(
+            author_name="Aman Kumar",
+            author_handle="@aman179102",
+            author_title="Systems & AI Engineer",
+            output_dir=Path("/tmp/test_output"),
         )
-        self.assertTrue(valid.is_valid)
-        self.assertGreaterEqual(valid.word_count, 75)
+        self.settings.output_dir.mkdir(parents=True, exist_ok=True)
 
-        invalid = ExtractedArticle(
-            url="https://example.com/blog/short",
-            title="Short",
-            text="Too short",
-            is_valid=False,
-            word_count=2,
-        )
-        self.assertFalse(invalid.is_valid)
-
-    def test_clean_tech_card_rendering(self):
-        settings = Settings()
+    # 1. Quality Gate Fail-Closed Test
+    @patch("app.quality.generate_json")
+    def test_quality_gate_fail_closed_on_model_error(self, mock_gen):
+        """When evaluation model fails or returns None, quality gate must REJECT (fail-closed)."""
+        mock_gen.return_value = None  # Model timeout or crash
         draft = PostDraft(
-            body="Testing visual rendering for database deep dives.",
-            image_title="LSM-Trees vs B+ Trees",
-            image_facts=["Sequential Disk I/O vs Random Writes"],
-            alt_text="Architecture diagram comparing storage engines",
-            visual_prompt="minimal dark slate technical architecture",
-            category="database",
+            body="PostgreSQL writes dead tuples on UPDATE without HOT.",
+            image_title="Postgres MVCC",
+            image_facts=["Dead Tuples"],
+            alt_text="Postgres MVCC",
             format_kind="deep_dive",
-            technical_takeaway="Trades compaction read overhead for zero random write penalties.",
         )
-        img = _draw_clean_tech_card(draft, settings)
-        self.assertEqual(img.size, (1200, 675))
+        res = evaluate_quality_gate(draft, draft.body, [], self.settings)
+        self.assertFalse(res.passed)
+        self.assertEqual(res.score, 0.0)
+        self.assertTrue(any("fail-closed" in i.lower() for i in res.issues))
+
+    @patch("app.quality.generate_json")
+    def test_quality_gate_rejects_on_critical_flaws(self, mock_gen):
+        """LLM reported critical issues must block approval even if overall score was claimed high."""
+        mock_gen.return_value = {
+            "scores": {
+                "factual_accuracy": 9.0,
+                "technical_relevance": 9.0,
+                "engineering_value": 8.5,
+                "writing_quality": 8.5,
+                "audience_relevance": 9.0,
+                "non_repetitive": 9.0,
+            },
+            "overall_score": 8.9,
+            "critical_flaws": ["Factual inaccuracy: Model version conflated with competitor."],
+            "minor_feedback": [],
+            "verdict": "Has severe error.",
+        }
+        draft = PostDraft(body="Valid body text under budget", image_title="Title", image_facts=["F"], alt_text="Alt")
+        res = evaluate_quality_gate(draft, draft.body, [], self.settings)
+        self.assertFalse(res.passed)
+        self.assertIn("Factual inaccuracy: Model version conflated with competitor.", res.issues)
+
+    # 2. Fact Verification Strict Grounding & Evidence Tests
+    @patch("app.verify.generate_json")
+    def test_fact_verification_rejects_unsupported_claims(self, mock_gen):
+        """Unsupported claims without source quotes must cause verification rejection."""
+        mock_gen.return_value = {
+            "claims": [
+                {
+                    "claim": "AlphaProof verified Signal's encryption core.",
+                    "exact_quote_from_source": "",
+                    "status": "UNSUPPORTED",
+                }
+            ],
+            "unsupported_claims": ["AlphaProof verified Signal's encryption core."],
+            "contradicted_claims": [],
+            "confidence_score": 0.30,
+            "rejection_reason": "Not mentioned in article.",
+        }
+        article_text = "Google DeepMind solved Olympiad geometry problems with AlphaProof in Lean 4." * 10
+        res = verify_draft_against_source(
+            "AlphaProof verified Signal's encryption core.",
+            "AlphaProof Announcement",
+            article_text,
+            self.settings,
+        )
+        self.assertFalse(res.passed)
+        self.assertIn("AlphaProof verified Signal's encryption core.", res.unsubstantiated_claims)
+
+    @patch("app.verify.generate_json")
+    def test_fact_verification_rejects_low_confidence(self, mock_gen):
+        """Confidence score below 0.85 must reject verification."""
+        mock_gen.return_value = {
+            "claims": [
+                {
+                    "claim": "Go 1.22 trace overhaul",
+                    "exact_quote_from_source": "The runtime/trace package contains a powerful tool",
+                    "status": "VERIFIED",
+                }
+            ],
+            "unsupported_claims": [],
+            "contradicted_claims": [],
+            "confidence_score": 0.70,  # Below 0.85
+            "rejection_reason": "",
+        }
+        article_text = "The runtime/trace package contains a powerful tool for understanding Go programs." * 10
+        res = verify_draft_against_source(
+            "Go 1.22 trace overhaul",
+            "Go Tracing",
+            article_text,
+            self.settings,
+        )
+        self.assertFalse(res.passed)
+        self.assertIn("below required threshold", res.rejection_reason)
+
+    # 3. Image Semantic Consistency Tests
+    def test_image_semantic_consistency_rejects_mismatch(self):
+        """Card headline that shares no technical overlap with the post must be rejected."""
+        # Create an actual image file
+        card_path = self.settings.output_dir / "mismatch_test.jpg"
+        draft = PostDraft(
+            body="Understanding LSM-tree write amplification in RocksDB.",
+            image_title="Frontend CSS Flexbox Grid Tricks",  # Completely unrelated topic
+            image_facts=["Flexbox"],
+            alt_text="CSS flexbox",
+            category="database",
+        )
+        _draw_clean_tech_card(draft, self.settings).save(str(card_path), "JPEG")
+
+        is_valid, reason = validate_image_consistency(draft, card_path)
+        self.assertFalse(is_valid)
+        self.assertIn("Semantic mismatch", reason)
+
+    def test_news_image_format_triggers_visual_generation(self):
+        """Unified 'news' format must properly route through visual generator."""
+        draft = PostDraft(
+            body="Cloudflare open sources Kitesurf browser engine under Apache 2.0.",
+            image_title="Cloudflare Kitesurf Engine",
+            image_facts=["Apache 2.0"],
+            alt_text="Kitesurf diagram",
+            format_kind="news",
+            category="dev",
+            has_image=True,
+        )
+        out_path = self.settings.output_dir / "news_img_test.jpg"
+        result_path = render_branded_image(draft, self.settings, out_path)
+        self.assertIsNotNone(result_path)
+        self.assertTrue(result_path.exists())
+
+    # 4. Personal Projects Exact URL & License Audit Tests
+    def test_personal_projects_verified_urls_and_licenses(self):
+        """All personal projects must have exact repository URLs and correct licenses."""
+        expected_urls = {
+            "https://github.com/aman179102/distributed-file-storage-service",
+            "https://github.com/aman179102/real-time-analytics-pipeline",
+            "https://github.com/aman179102/podvoice",
+        }
+        actual_urls = {p["url"] for p in PERSONAL_PROJECTS}
+        self.assertEqual(expected_urls, actual_urls)
+
+        # Verify distributed-file-storage-service is NOT labeled open source
+        storage_proj = next(p for p in PERSONAL_PROJECTS if "storage" in p["title"].lower())
+        self.assertFalse(storage_proj["is_open_source"])
+        # Ensure Raft is NOT claimed
+        self.assertNotIn("raft", storage_proj["facts"]["tech"].lower())
+
+        # Verify analytics pipeline has no fabricated 'sub-millisecond' benchmarks
+        analytics_proj = next(p for p in PERSONAL_PROJECTS if "analytics" in p["title"].lower())
+        self.assertTrue(analytics_proj["is_open_source"])
+        self.assertNotIn("sub-millisecond", analytics_proj["summary"].lower())
+
+    # 5. Engagement Fail-Closed & Validation Tests
+    @patch("app.engagement.generate_json")
+    def test_draft_reply_disabled_fallback_on_ai_failure(self, mock_gen):
+        """When AI generation fails, draft_reply MUST return empty string, never a canned fallback."""
+        mock_gen.return_value = None  # AI failed
+        reply, reason = draft_reply("What are the bottlenecks of epoll in Linux?", self.settings)
+        self.assertEqual(reply, "")
+        self.assertIn("failed", reason.lower())
+
+    def test_validate_reply_quality_rejects_canned_phrases(self):
+        """Rejects repetitive catchphrases and generic praise."""
+        cand = EngagementCandidate(
+            tweet_id="123",
+            author="torvalds",
+            author_id="456",
+            text="Discussing Linux memory mapping.",
+            likes=10,
+            created_at="",
+        )
+        # Test generic praise rejection
+        valid, reason = validate_reply_quality(cand, "Great post! Really agree with your point.", {})
+        self.assertFalse(valid)
+        self.assertIn("generic opening", reason.lower())
+
+        # Test repetitive canned phrase loop rejection
+        valid, reason = validate_reply_quality(
+            cand,
+            "The hidden cost is tail latency under partial network partitions.",
+            {},
+        )
+        self.assertFalse(valid)
+        self.assertIn("repetitive", reason.lower())
 
 
 if __name__ == "__main__":

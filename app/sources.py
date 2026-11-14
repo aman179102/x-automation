@@ -43,46 +43,49 @@ FEEDS: tuple[FeedSpec, ...] = (
     FeedSpec("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index", "tech", 0.70, 8),
 )
 
-# Aman Kumar's verified open-source projects (Section 16 showcase & build-in-public)
+# Aman Kumar's verified software projects (audited against actual GitHub repository code)
 PERSONAL_PROJECTS = (
     {
-        "title": "Distributed Storage Engine in Go",
-        "url": "https://github.com/aman179102",
-        "summary": "S3-compatible distributed storage engine featuring Reed-Solomon erasure coding, content-defined deduplication, chunking, and Raft consensus metadata synchronization.",
+        "title": "Distributed File Storage Service in Go",
+        "url": "https://github.com/aman179102/distributed-file-storage-service",
+        "summary": "S3-compatible storage service in Go featuring Reed-Solomon erasure coding (4 data + 2 parity shards), SHA-256 chunk deduplication, PostgreSQL metadata store, and Prometheus metrics.",
         "category": "distributed",
         "source_kind": "showcase",
+        "is_open_source": False,  # Proprietary license in repository
         "facts": {
-            "tech": "Go, Raft Consensus, Reed-Solomon Erasure Coding",
-            "tradeoff": "Trades minor CPU encoding overhead for 50% lower disk storage compared to 3x replication.",
-            "feature": "Survives multi-disk failures with zero data loss and deterministic recovery.",
+            "tech": "Go, Reed-Solomon Erasure Coding (4+2), PostgreSQL, SHA-256 Dedup, S3 REST API",
+            "tradeoff": "4+2 Reed-Solomon encoding provides 1.5x storage expansion versus 3x replication, tolerating 2 disk failures while cutting raw disk footprint.",
+            "feature": "S3-compatible multipart uploads, range requests, and PostgreSQL metadata indexing.",
         },
-        "tags": ["#Golang", "#DistributedSystems"],
+        "tags": ["#Golang", "#StorageSystems"],
     },
     {
         "title": "Real-Time Streaming Analytics Pipeline",
-        "url": "https://github.com/aman179102",
-        "summary": "Low-latency streaming analytics engine processing millions of events using Python, Kafka, Redis streams, TimescaleDB, and OpenTelemetry.",
+        "url": "https://github.com/aman179102/real-time-analytics-pipeline",
+        "summary": "Open-source streaming analytics pipeline built with FastAPI, TimescaleDB hypertables, Redis Streams / Kafka queue backends, WebSockets live push, and OpenTelemetry.",
         "category": "architecture",
         "source_kind": "showcase",
+        "is_open_source": True,  # MIT License
         "facts": {
-            "tech": "Python, Kafka, TimescaleDB, Redis Streams",
-            "tradeoff": "Uses chunked batch inserts and continuous aggregates to prevent lock contention during write bursts.",
-            "feature": "Sub-millisecond event ingestion with real-time WebSocket client broadcast.",
+            "tech": "FastAPI, TimescaleDB, Redis Streams, Kafka, WebSockets, OpenTelemetry",
+            "tradeoff": "Combines TimescaleDB chunk compression with adaptive rate-based sampling to handle bursty event streams without saturation.",
+            "feature": "Asynchronous batch ingestion, correlation ID propagation via OpenTelemetry, and live WebSocket dashboards.",
         },
-        "tags": ["#SystemDesign", "#Backend"],
+        "tags": ["#SystemDesign", "#Python", "#OpenSource"],
     },
     {
-        "title": "PodVoice Studio: Local-First AI Podcast Engine",
-        "url": "https://github.com/aman179102",
-        "summary": "Private, on-device engine for multi-speaker AI podcast synthesis, audio processing, and script refinement running entirely local without third-party APIs.",
+        "title": "Podvoice: Local-First Multi-Speaker AI Audio Engine",
+        "url": "https://github.com/aman179102/podvoice",
+        "summary": "Open-source local-first tool and FastAPI Studio web UI that converts Markdown scripts into multi-speaker podcast audio using Coqui XTTS v2 offline.",
         "category": "ai",
         "source_kind": "showcase",
+        "is_open_source": True,  # Open Source
         "facts": {
-            "tech": "Python, Local Audio Inference, Whisper, TTS",
-            "tradeoff": "Prioritizes local privacy and zero cloud fees over cloud GPU speed.",
-            "feature": "100% private, on-device audio processing pipeline.",
+            "tech": "Python, Coqui XTTS v2, FastAPI, Markdown Parsing",
+            "tradeoff": "Runs 100% offline on local CPU/GPU, eliminating cloud API costs and third-party data transmission.",
+            "feature": "Deterministic voice assignment from Markdown, single-pass audio stitching, and YAML speaker profile management.",
         },
-        "tags": ["#AIEngineering", "#Python"],
+        "tags": ["#Python", "#LocalAI", "#OpenSource"],
     },
 )
 

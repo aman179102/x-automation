@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "last_updated": "2026-11-14T06:44:46.537099+00:00",
+  "metrics": {
+    "2120812122901000353": {
+      "tweet_id": "2120812122901000353",
+      "likes": 0,
+      "reposts": 0,
+      "replies": 0,
+      "impressions": 9,
+      "profile_visits": null,
+      "collected_at": "2026-11-14T06:44:40.999943+00:00",
+      "format_kind": "news",
+      "title": "Introducing AlphaProof Code: a breakthrough in verifying complex software at depth"
+    },
+    "2120903447084200005": {
+      "tweet_id": "2120903447084200005",
+      "likes": 0,
+      "reposts": 0,
+      "replies": 0,
+      "impressions": 5,
+      "profile_visits": null,
+      "collected_at": "2026-11-14T06:44:42.953134+00:00",
+      "format_kind": "news",
+      "title": "BotPsy: On-Device Personal Assistant with a Sub-Billion-Parameter Agentic Language Model"
+    },
+    "2121193561966395424": {
+      "tweet_id": "2121193561966395424",
+      "likes": 0,
+      "reposts": 0,
+      "replies": 0,
+      "impressions": 4,
+      "profile_visits": null,
+      "collected_at": "2026-11-14T06:44:44.800730+00:00",
+      "format_kind": "news",
+      "title": "GitHub availability report: October 2026"
+    },
+    "2121271053255168249": {
+      "tweet_id": "2121271053255168249",
+      "likes": 0,
+      "reposts": 0,
+      "replies": 0,
+      "impressions": 4,
+      "profile_visits": null,
+      "collected_at": "2026-11-14T06:44:46.536729+00:00",
+      "format_kind": "news",
+      "title": "Introducing Spend Management: Spending limits and alerts for Cloudflare"
+    }
+  },
+  "format_performance": {
+    "news": {
+      "avg_likes": 0.0,
+      "avg_reposts": 0.0,
+      "sample_size": 4
+    }
+  }
+}

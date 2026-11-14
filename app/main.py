@@ -44,6 +44,7 @@ def _cli_parser() -> argparse.ArgumentParser:
     p.add_argument("--test-image", action="store_true", help="Test technical graphic generation with brand card overlay")
     p.add_argument("--engagement-plan", action="store_true", help="Find relevant developer tweets & draft smart replies")
     p.add_argument("--engagement-live", action="store_true", help="Publish a smart reply to a top tech tweet")
+    p.add_argument("--sync-analytics", action="store_true", help="Sync real post metrics and calculate format performance")
     p.add_argument("--force", action="store_true", help="Bypass posting windows and daily limits")
     p.add_argument("--daemon", action="store_true", help="Run continuously in background mode")
     return p
@@ -67,6 +68,16 @@ def main() -> int:
         except TwitterError as exc:
             print(f"❌ Verification failed: {exc}")
             return 1
+
+    # Sync Analytics mode
+    if getattr(args, "sync_analytics", False):
+        import json
+        from app.analytics import sync_recent_analytics
+        print("\n📈 Syncing verified post metrics from X...")
+        res = sync_recent_analytics(settings)
+        print("✅ Analytics sync complete:")
+        print(json.dumps(res.get("format_performance", {}), indent=2))
+        return 0
 
     # 2. Test image generation mode
     if args.test_image:
@@ -116,6 +127,7 @@ def main() -> int:
             load_engagement_state,
             post_live_reply,
             save_engagement_state,
+            validate_reply_quality,
         )
 
         eng_state = load_engagement_state(settings.state_dir)
@@ -132,21 +144,34 @@ def main() -> int:
             return 0
 
         print(f"Found {len(candidates)} high-potential tweets for technical engagement:\n" + "=" * 70)
+        valid_candidates = []
         for idx, c in enumerate(candidates, 1):
-            print(f"\n[{idx}] Tweet by @{c.author} ({c.likes} likes) | ID: {c.tweet_id}")
+            print(f"\n[{idx}] Tweet by @{c.author} ({c.likes} likes, Score: {c.score}) | ID: {c.tweet_id}")
             print(f"    Post: \"{c.text[:130]}...\"")
-            reply, reason = draft_reply(c.text, settings)
-            c.suggested_reply = reply
-            c.reasoning = reason
-            print(f"    💬 Drafted Reply: \"{reply}\"")
-            print(f"    💡 Strategic Angle: {reason}")
+            reply, reason = draft_reply(c.text, settings, author=c.author)
+            if reply:
+                is_valid, val_reason = validate_reply_quality(c, reply, eng_state)
+                if is_valid:
+                    c.suggested_reply = reply
+                    c.reasoning = reason
+                    valid_candidates.append(c)
+                    print(f"    💬 Drafted Reply: \"{reply}\"")
+                    print(f"    💡 Strategic Angle: {reason}")
+                else:
+                    print(f"    ⚠️ Reply rejected by quality validator: {val_reason}")
+            else:
+                print(f"    ⚠️ Reply skipped: {reason}")
         print("\n" + "=" * 70)
 
         if not args.engagement_live:
             print("💡 [ENGAGEMENT PLAN COMPLETE] Run with '--engagement-live' to post the top reply.\n")
             return 0
 
-        target = candidates[0]
+        if not valid_candidates:
+            print("❌ No reply passed the quality and safety validation gates. Skipping reply (fail-closed).\n")
+            return 0
+
+        target = valid_candidates[0]
         print(f"\n🚀 Posting technical reply to @{target.author}'s tweet ({target.tweet_id})...")
         try:
             reply_id = asyncio.run(post_live_reply(target, target.suggested_reply, settings))
@@ -241,8 +266,9 @@ def main() -> int:
         candidate_img = settings.output_dir / f"tweet_{ts}.jpg"
         print("🖼️ Generating professional technical graphic...")
         img_path = render_branded_image(draft, settings, candidate_img)
-        if not validate_image_consistency(draft, img_path):
-            print("⚠️ Visual failed consistency check. Switching to clean text-only post.")
+        valid_img, img_reason = validate_image_consistency(draft, img_path)
+        if not valid_img:
+            print(f"⚠️ Visual failed consistency check ({img_reason}). Switching to clean text-only post.")
             img_path = None
 
     # Display preview

@@ -37,7 +37,7 @@ PR_FLUFF_TERMS = {
 }
 
 
-def score_story(story: Story) -> float:
+def score_story(story: Story, analytics_perf: dict[str, Any] | None = None) -> float:
     base = story.item.score
     text = f"{story.title} {story.summary}".lower()
 
@@ -57,6 +57,14 @@ def score_story(story: Story) -> float:
         if term in text:
             multiplier = max(multiplier, boost)
 
+    # Empirical performance multiplier based on actual engagement analytics
+    if analytics_perf and story.source_kind in analytics_perf:
+        perf = analytics_perf[story.source_kind]
+        if perf.get("avg_likes", 0) >= 3.0:
+            multiplier *= 1.15
+        elif perf.get("avg_likes", 0) >= 1.5:
+            multiplier *= 1.08
+
     # Recency bonus for news items
     if story.source_kind == "news":
         now = datetime.now(timezone.utc)
@@ -73,7 +81,11 @@ def score_story(story: Story) -> float:
     return round(base * multiplier, 3)
 
 
-def rank_candidates(stories: list[Story], state: dict[str, Any]) -> list[tuple[Story, float]]:
+def rank_candidates(
+    stories: list[Story],
+    state: dict[str, Any],
+    analytics_perf: dict[str, Any] | None = None,
+) -> list[tuple[Story, float]]:
     scored: list[tuple[Story, float]] = []
 
     for s in stories:
@@ -83,19 +95,24 @@ def rank_candidates(stories: list[Story], state: dict[str, Any]) -> list[tuple[S
         if not is_allowed_topic(s):
             continue
 
-        score = score_story(s)
+        score = score_story(s, analytics_perf=analytics_perf)
         scored.append((s, score))
 
     scored.sort(key=lambda x: x[1], reverse=True)
     return scored
 
 
-def select_best_story(stories: list[Story], state: dict[str, Any], preferred_kind: str | None = None) -> Story | None:
+def select_best_story(
+    stories: list[Story],
+    state: dict[str, Any],
+    preferred_kind: str | None = None,
+    analytics_perf: dict[str, Any] | None = None,
+) -> Story | None:
     """
     Selects the highest-ranked qualified candidate.
     For news stories, enforces full article extraction and verification.
     """
-    ranked = rank_candidates(stories, state)
+    ranked = rank_candidates(stories, state, analytics_perf=analytics_perf)
     if not ranked:
         return None
 

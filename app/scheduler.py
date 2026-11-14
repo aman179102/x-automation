@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+from app.analytics import load_analytics_state
 from app.compliance import can_post_now
 from app.config import Settings
 from app.image import render_branded_image, validate_image_consistency
@@ -75,13 +76,15 @@ def run_cycle(settings: Settings, live: bool = False, force: bool = False) -> bo
     target_format = _pick_balanced_format(recent_posts)
     logger.info("Selected target format for cycle: %s", target_format)
 
-    # 2. Fetch candidates & select qualified story
+    # 2. Fetch candidates & select qualified story informed by real analytics
+    analytics = load_analytics_state(settings.state_dir)
+    format_perf = analytics.get("format_performance")
     stories = fetch_all_stories(settings)
-    best_story = select_best_story(stories, state, preferred_kind=target_format)
+    best_story = select_best_story(stories, state, preferred_kind=target_format, analytics_perf=format_perf)
 
     if not best_story:
         # Fallback to any qualified candidate
-        best_story = select_best_story(stories, state)
+        best_story = select_best_story(stories, state, analytics_perf=format_perf)
 
     if not best_story:
         logger.info("No eligible or verified stories found.")
@@ -143,8 +146,9 @@ def run_cycle(settings: Settings, live: bool = False, force: bool = False) -> bo
         ts = int(time.time())
         candidate_img_path = settings.output_dir / f"tweet_{ts}.jpg"
         img_path = render_branded_image(draft, settings, candidate_img_path)
-        if not validate_image_consistency(draft, img_path):
-            logger.warning("Image failed consistency check; falling back to text-only post.")
+        valid_img, img_reason = validate_image_consistency(draft, img_path)
+        if not valid_img:
+            logger.warning("Image failed consistency check (%s); falling back to text-only post.", img_reason)
             img_path = None
 
     if not live:

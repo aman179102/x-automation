@@ -95,8 +95,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [ -f state/history.json ]; then
             git add -f state/history.json
-            if ! git diff --cached --quiet; then
-              git commit -m "chore: record posted tweet history [skip ci]"
-              git push
-            fi
+          fi
+          if [ -f state/analytics.json ]; then
+            git add -f state/analytics.json
+          fi
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: record posted tweet history [skip ci]"
+            git push
           fi

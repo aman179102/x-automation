@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import logging
 import random
+import re
 import urllib.parse
 from pathlib import Path
 from typing import Optional
@@ -76,11 +77,10 @@ def _draw_clean_tech_card(draft: PostDraft, settings: Settings, base_bg: Image.I
     accent = _get_category_accent(draft.category)
 
     if base_bg is None:
-        # Dark slate modern canvas
         img = Image.new("RGB", (WIDTH, HEIGHT), (13, 17, 23))
         draw = ImageDraw.Draw(img)
 
-        # Subtle subtle technical grid / accent glow
+        # Subtle technical grid
         for x in range(0, WIDTH, 80):
             draw.line([(x, 0), (x, HEIGHT)], fill=(22, 27, 34), width=1)
         for y in range(0, HEIGHT, 80):
@@ -104,7 +104,7 @@ def _draw_clean_tech_card(draft: PostDraft, settings: Settings, base_bg: Image.I
     # 2. Main Title (Inter-Bold)
     title_font = _font(settings, "Inter-Bold.ttf", 44)
     raw_title = draft.image_title or (draft.story.title if draft.story else "Systems Engineering Insight")
-    
+
     # Word wrap headline
     words = raw_title.split()
     lines: list[str] = []
@@ -137,14 +137,12 @@ def _draw_clean_tech_card(draft: PostDraft, settings: Settings, base_bg: Image.I
             outline=(48, 54, 61, 240),
             width=1,
         )
-        # Accent left indicator stripe
         draw.rounded_rectangle([70, box_y, 76, box_y + 110], radius=3, fill=accent)
 
         takeaway_label_font = _font(settings, "JetBrainsMono-Medium.ttf", 16)
         takeaway_font = _font(settings, "Inter-Regular.ttf", 22)
         draw.text((95, box_y + 14), "CORE ARCHITECTURAL MECHANISM / TAKEAWAY", font=takeaway_label_font, fill=(139, 148, 158, 255))
-        
-        # Wrap takeaway text
+
         t_words = takeaway.split()
         t_lines: list[str] = []
         t_curr = ""
@@ -158,7 +156,7 @@ def _draw_clean_tech_card(draft: PostDraft, settings: Settings, base_bg: Image.I
                 t_curr = w
         if t_curr:
             t_lines.append(t_curr)
-        
+
         t_y = box_y + 44
         for tl in t_lines[:2]:
             draw.text((95, t_y), tl, font=takeaway_font, fill=(225, 232, 240, 255))
@@ -168,7 +166,7 @@ def _draw_clean_tech_card(draft: PostDraft, settings: Settings, base_bg: Image.I
     footer_y = HEIGHT - 85
     draw.line([(70, footer_y), (WIDTH - 70, footer_y)], fill=(33, 38, 45, 255), width=1)
 
-    brand_lead = "🚀 Open Source Project by" if draft.format_kind == "showcase" else "⚡ Curated by"
+    brand_lead = "🚀 Project by" if draft.format_kind == "showcase" else "⚡ Curated by"
     brand_font = _font(settings, "Inter-SemiBold.ttf", 20)
     brand_sig = f"{brand_lead} {settings.author_name} ({settings.author_handle})  |  {settings.author_title}"
     draw.text((70, footer_y + 24), brand_sig, font=brand_font, fill=(139, 148, 158, 255))
@@ -182,17 +180,18 @@ def render_branded_image(draft: PostDraft, settings: Settings, output_path: Path
     Renders high-quality visual adhering to Section 15:
     - Text-only posts return None (no forced useless graphics).
     - Diverse visual aesthetics (clean architectural layouts, not repetitive neon).
-    - Accurate representation of the subject.
+    - Unifies 'news' and 'verified_news_analysis' format keys.
     """
-    # 1. Check if post should be text-only
+    # 1. Discussion posts and explicitly imageless drafts remain clean text-only
     if not draft.has_image or draft.format_kind == "discussion":
         logger.info("Post format is text-only (discussion or diagram adds no value).")
         return None
 
     bg_img: Optional[Image.Image] = None
 
-    # 2. For verified news, optionally fetch a targeted contextual illustration
-    if draft.format_kind == "verified_news_analysis" and settings.image_mode == "ai":
+    # 2. For verified news, execute intended contextual visual generation
+    is_news_format = draft.format_kind in ("news", "verified_news_analysis")
+    if is_news_format and settings.image_mode == "ai":
         clean_desc = draft.visual_prompt or f"clean minimalist technical schematic {draft.category} modern dark slate"
         prompt = f"{clean_desc}, minimalist clean technical composition, dark slate background, high contrast, no text, no neon glowing clutter, 4k"
         bg_bytes = _fetch_pollinations_image(prompt)
@@ -200,7 +199,6 @@ def render_branded_image(draft: PostDraft, settings: Settings, output_path: Path
             try:
                 raw_bg = Image.open(io.BytesIO(bg_bytes)).convert("RGB")
                 raw_bg = raw_bg.resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS)
-                # Dim background so typography remains 100% readable
                 enhancer = ImageEnhance.Brightness(raw_bg)
                 bg_img = enhancer.enhance(0.40)
             except Exception as exc:
@@ -216,26 +214,43 @@ def render_branded_image(draft: PostDraft, settings: Settings, output_path: Path
     return output_path
 
 
-def validate_image_consistency(draft: PostDraft, image_path: Optional[Path]) -> bool:
+def validate_image_consistency(draft: PostDraft, image_path: Optional[Path]) -> tuple[bool, str]:
     """
-    Validates that the generated image file is intact, readable,
-    and appropriate for the post per Section 15.
+    Genuine Semantic and Structural Image-to-Post Consistency Validation.
+    Verifies:
+    1. File integrity, valid dimensions, non-corrupt encoding.
+    2. Semantic topic alignment: Card headline, technology terms, and takeaway must
+       substantively correspond to the post body.
+    3. Rejects images if semantic validation fails, allowing clean text-only publication.
     """
     if image_path is None:
-        return True
+        return True, "Text-only post; no image validation required."
 
     if not image_path.exists() or image_path.stat().st_size < 1000:
-        logger.warning("Image file %s does not exist or is too small.", image_path)
-        return False
+        return False, f"Image file {image_path} does not exist or is under 1KB."
 
+    # 1. Structural check
     try:
         with Image.open(image_path) as img:
             w, h = img.size
             if w < 600 or h < 300:
-                logger.warning("Image dimensions too small: %dx%d", w, h)
-                return False
+                return False, f"Image dimensions too small ({w}x{h}). Minimum required: 600x300."
     except Exception as exc:
-        logger.warning("Image validation failed: %s", exc)
-        return False
+        return False, f"Corrupted image file: {exc}"
 
-    return True
+    # 2. Semantic consistency check
+    post_text = f"{draft.body} {draft.story.title if draft.story else ''}".lower()
+    title_terms = [t.lower() for t in re.findall(r"\b[a-zA-Z0-9_\-\+]{3,}\b", draft.image_title)]
+
+    # Check that at least one key technical identifier in image_title appears in post body
+    overlap = [term for term in title_terms if term in post_text and term not in ("the", "and", "for", "with", "from", "that")]
+    if title_terms and not overlap:
+        return False, f"Semantic mismatch: Image title '{draft.image_title}' shares no technical terms with post body."
+
+    # 3. If visual prompt exists, verify it doesn't contain forbidden generic neon buzzwords
+    if draft.visual_prompt:
+        for forbidden in ("cyberpunk neon glowing city", "matrix raining code", "alien spacecraft"):
+            if forbidden in draft.visual_prompt.lower():
+                return False, f"Image visual prompt contains forbidden generic trope: '{forbidden}'."
+
+    return True, "Image structurally valid and semantically consistent with post content."

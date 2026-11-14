@@ -42,14 +42,15 @@ CRITICAL EDITORIAL PRINCIPLES:
   "has_image": true
 }"""
 
-SHOWCASE_PROMPT = """You are systems engineer Aman Kumar (@aman179102), sharing real architectural decisions and lessons from building your open-source projects on X (Twitter).
+SHOWCASE_PROMPT = """You are systems engineer Aman Kumar (@aman179102), sharing real architectural decisions and lessons from building your software projects on X (Twitter).
 
 CRITICAL EDITORIAL PRINCIPLES:
 1. Authentic build-in-public / engineering showcase.
-2. Focus on the core design decision or trade-off (e.g., why Reed-Solomon erasure coding over 3x replication, or chunked batch inserts for streaming telemetry).
-3. Humble yet authoritative tone. No hype, no self-aggrandizing claims.
-4. Total body must be strictly under 200 characters.
-5. Return JSON strictly:
+2. Focus on verified core design decisions and trade-offs (e.g., 4+2 Reed-Solomon erasure coding versus 3x replication, TimescaleDB chunk compression, or offline local XTTS synthesis).
+3. Humble yet authoritative tone. No hype, no fabricated benchmarks (no 'sub-millisecond' or 'millions of events' claims unless specifically verified).
+4. Strictly refer to projects by their actual license: do NOT call proprietary software open source.
+5. Total body must be strictly under 200 characters.
+6. Return JSON strictly:
 {
   "body": "The post text (under 200 characters).",
   "image_title": "Project or architecture title (3-6 words)",
@@ -189,6 +190,7 @@ class Writer:
         has_image = bool(result.get("has_image", kind != "discussion"))
         tags = story.item.extra.get("tags") or hashtags_for_category(story.category)
 
+        normalized_kind = "news" if kind in ("news", "verified_news_analysis") else kind
         return PostDraft(
             body=body,
             image_title=image_title,
@@ -198,7 +200,7 @@ class Writer:
             category=story.category,
             story=story,
             tags=tags[:2],
-            format_kind=kind,
+            format_kind=normalized_kind,
             has_image=has_image,
             technical_takeaway=technical_takeaway,
         )

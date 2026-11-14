@@ -8,6 +8,7 @@ output/
 state/*
 !state/history.json
 !state/engagement.json
+!state/analytics.json
 .pytest_cache/
 .coverage
 htmlcov/
