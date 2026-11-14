@@ -1,0 +1,92 @@
+name: Telegram Mobile Co-Pilot (100% Ban-Proof)
+
+on:
+  schedule:
+    # 2 prime Indian Tech peak windows per day:
+    # 10:00 AM IST (04:30 UTC) & 07:30 PM IST (14:00 UTC)
+    - cron: "30 4 * * *"
+    - cron: "00 14 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Bypass posting window"
+        required: false
+        default: true
+        type: boolean
+      format:
+        description: "Content format"
+        required: true
+        default: "balanced"
+        type: choice
+        options:
+          - balanced
+          - showcase
+          - deep-dive
+          - discussion
+
+permissions:
+  contents: write
+
+concurrency:
+  group: telegram-copilot
+  cancel-in-progress: false
+
+jobs:
+  dispatch_to_telegram:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate draft & dispatch to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ARGS="--telegram"
+          
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ inputs.force }}" = "true" ]; then
+              ARGS="$ARGS --force"
+            fi
+            if [ "${{ inputs.format }}" = "showcase" ]; then
+              ARGS="$ARGS --showcase"
+            elif [ "${{ inputs.format }}" = "deep-dive" ]; then
+              ARGS="$ARGS --deep-dive"
+            elif [ "${{ inputs.format }}" = "discussion" ]; then
+              ARGS="$ARGS --discussion"
+            fi
+          fi
+
+          python -m app.main $ARGS
+
+      - name: Commit state history
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -f state/history.json ]; then
+            git add -f state/history.json
+          fi
+          if git diff --staged --quiet; then
+            echo "No state changes to commit."
+          else
+            git commit -m "chore(copilot): update publishing history [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          fi

@@ -11,9 +11,10 @@ on:
       mode:
         description: "Run mode"
         required: true
-        default: "live"
+        default: "telegram"
         type: choice
         options:
+          - telegram
           - live
           - dry-run
       force:
@@ -55,6 +56,8 @@ jobs:
         env:
           AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
           CT0: ${{ secrets.CT0 }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -66,7 +69,7 @@ jobs:
             FORCE="${{ inputs.force }}"
             SHOWCASE="${{ inputs.showcase }}"
           else
-            MODE="live"
+            MODE="telegram"
             FORCE="false"
             SHOWCASE="false"
           fi
@@ -78,6 +81,8 @@ jobs:
             JITTER=$((45 + RANDOM % 135))
             echo "Sleeping ${JITTER}s for humanized timing jitter..."
             sleep $JITTER
+          elif [ "$MODE" = "telegram" ]; then
+            ARGS="--telegram"
           else
             ARGS="--dry-run"
           fi

@@ -92,6 +92,16 @@ class Settings:
     output_dir: Path = field(default_factory=lambda: ROOT / "output")
     assets_dir: Path = field(default_factory=lambda: ROOT / "assets")
 
+    # Telegram 1-Tap Mobile Co-Pilot (100% Ban-Proof)
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+
+    # Satellite / Buffer Account Engine (SEO & Authority Funnel)
+    satellite_auth_token: str = ""
+    satellite_ct0: str = ""
+    satellite_handle: str = "@TechArchDigest"
+    satellite_max_daily: int = 3
+
     # Optional integrations
     github_token: str = ""
     healthcheck_url: str = ""
@@ -134,6 +144,14 @@ def load_settings(overrides: dict[str, object] | None = None) -> Settings:
     auth_token = str(overrides.get("auth_token") or get_str("AUTH_TOKEN", ("TWITTER_AUTH_TOKEN", "X_AUTH_TOKEN")))
     ct0 = str(overrides.get("ct0") or get_str("CT0", ("TWITTER_CT0", "X_CT0")))
 
+    telegram_bot_token = str(overrides.get("telegram_bot_token") or get_str("TELEGRAM_BOT_TOKEN"))
+    telegram_chat_id = str(overrides.get("telegram_chat_id") or get_str("TELEGRAM_CHAT_ID"))
+
+    satellite_auth_token = str(overrides.get("satellite_auth_token") or get_str("SATELLITE_AUTH_TOKEN"))
+    satellite_ct0 = str(overrides.get("satellite_ct0") or get_str("SATELLITE_CT0"))
+    satellite_handle = str(overrides.get("satellite_handle") or get_str("SATELLITE_HANDLE", default="@TechArchDigest"))
+    satellite_max_daily = int(overrides.get("satellite_max_daily") or int(os.getenv("SATELLITE_MAX_DAILY", "3")))
+
     return Settings(
         api_key=api_key,
         api_secret=api_secret,
@@ -158,6 +176,12 @@ def load_settings(overrides: dict[str, object] | None = None) -> Settings:
         timezone=tz_str,
         daily_post_cap=daily_cap,
         min_spacing_minutes=min_spacing,
+        telegram_bot_token=telegram_bot_token,
+        telegram_chat_id=telegram_chat_id,
+        satellite_auth_token=satellite_auth_token,
+        satellite_ct0=satellite_ct0,
+        satellite_handle=satellite_handle,
+        satellite_max_daily=satellite_max_daily,
         github_token=get_str("GITHUB_TOKEN"),
         healthcheck_url=get_str("HEALTHCHECK_URL"),
     )

@@ -1,0 +1,101 @@
+name: Satellite Account SEO Engine
+
+on:
+  schedule:
+    # 3 daily runs for the secondary curator account:
+    # 09:30 AM IST (04:00 UTC), 02:30 PM IST (09:00 UTC), 08:30 PM IST (15:00 UTC)
+    - cron: "0 4 * * *"
+    - cron: "0 9 * * *"
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        required: true
+        default: "live"
+        type: choice
+        options:
+          - live
+          - plan
+      force:
+        description: "Bypass spacing limits"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: satellite-seo
+  cancel-in-progress: false
+
+jobs:
+  run_satellite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run satellite endorsement cycle
+        env:
+          SATELLITE_AUTH_TOKEN: ${{ secrets.SATELLITE_AUTH_TOKEN }}
+          SATELLITE_CT0: ${{ secrets.SATELLITE_CT0 }}
+          AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
+          CT0: ${{ secrets.CT0 }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODE="${{ inputs.mode }}"
+            FORCE="${{ inputs.force }}"
+          else
+            MODE="live"
+            FORCE="false"
+          fi
+
+          ARGS=""
+          if [ "$MODE" = "live" ]; then
+            ARGS="--satellite-live"
+            # Random jitter between 60 and 240 seconds
+            JITTER=$((60 + RANDOM % 180))
+            echo "Sleeping ${JITTER}s for humanized spacing..."
+            sleep $JITTER
+          else
+            ARGS="--satellite-plan"
+          fi
+
+          if [ "$FORCE" = "true" ]; then
+            ARGS="$ARGS --force"
+          fi
+
+          python -m app.main $ARGS
+
+      - name: Commit satellite state
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -f state/satellite_state.json ]; then
+            git add -f state/satellite_state.json
+          fi
+          if git diff --staged --quiet; then
+            echo "No state changes to commit."
+          else
+            git commit -m "chore(satellite): update endorsement history [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          fi

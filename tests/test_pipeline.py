@@ -208,6 +208,51 @@ class TestSecondPassCorrectness(unittest.TestCase):
         self.assertFalse(valid)
         self.assertIn("repetitive", reason.lower())
 
+    # 6. Telegram 1-Tap Mobile Co-Pilot Tests
+    def test_telegram_keyboard_builds_mobile_intent(self):
+        """Telegram keyboard must generate accurate Twitter mobile web intent URL."""
+        from app.telegram_bot import build_telegram_keyboard, format_telegram_caption
+
+        text = "Testing distributed systems with 4+2 Reed-Solomon."
+        kb = build_telegram_keyboard(
+            tweet_text=text,
+            primary_source_url="https://github.com/aman179102",
+            portfolio_url="https://github.com/aman179102",
+        )
+        self.assertIn("inline_keyboard", kb)
+        intent_btn = kb["inline_keyboard"][0][0]
+        self.assertIn("twitter.com/intent/tweet", intent_btn["url"])
+        self.assertIn("Reed-Solomon", intent_btn["url"])
+
+        # Test caption formatting stays under 1024 characters
+        draft = PostDraft(body=text, image_title="Storage", image_facts=["RS"], alt_text="Alt", format_kind="deep_dive")
+        caption = format_telegram_caption(draft, text, 9.2)
+        self.assertLessEqual(len(caption), 1024)
+        self.assertIn("DEEP_DIVE", caption)
+        self.assertIn("9.2", caption)
+
+    # 7. Satellite Engine Matching & Endorsement Tests
+    @patch("app.satellite.generate_json")
+    def test_satellite_project_matching_and_endorsement(self, mock_gen):
+        """Satellite account matches relevant projects and endorses @aman179102."""
+        from app.satellite import match_project_to_tweet, draft_satellite_endorsement
+
+        # Storage matching
+        tweet = "Looking for good architecture examples of Reed-Solomon chunk deduplication in distributed storage."
+        proj = match_project_to_tweet(tweet)
+        self.assertIsNotNone(proj)
+        self.assertEqual(proj["name"], "distributed-file-storage-service")
+
+        # Mock AI endorsement
+        mock_gen.return_value = {
+            "reply": "Deduplication before erasure coding saves disk space. @aman179102 has a clean reference: https://github.com/aman179102/distributed-file-storage-service",
+            "reasoning": "Directly matches RS deduplication question.",
+        }
+        reply, reason = draft_satellite_endorsement(tweet, "sysdesigner", proj, self.settings)
+        self.assertIn("@aman179102", reply)
+        self.assertIn("distributed-file-storage-service", reply)
+        self.assertLessEqual(len(reply), 280)
+
 
 if __name__ == "__main__":
     unittest.main()

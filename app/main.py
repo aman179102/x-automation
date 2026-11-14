@@ -34,9 +34,11 @@ def _cli_parser() -> argparse.ArgumentParser:
     )
     mode = p.add_mutually_exclusive_group()
     mode.add_argument("--live", action="store_true", help="Publish directly to X (Twitter)")
+    mode.add_argument("--telegram", action="store_true", help="Generate verified draft & card and dispatch to Telegram with 1-Tap Mobile Post button")
     mode.add_argument("--dry-run", action="store_true", help="Generate post & image without publishing (default)")
 
     p.add_argument("--check-account", action="store_true", help="Verify Twitter credentials and account details")
+    p.add_argument("--test-telegram", action="store_true", help="Send a test ping to verify Telegram Bot configuration")
     p.add_argument("--plan", action="store_true", help="List ranked candidates across diverse formats with scores")
     p.add_argument("--showcase", action="store_true", help="Force post an open-source project showcase")
     p.add_argument("--deep-dive", action="store_true", help="Force post an engineering deep dive")
@@ -44,7 +46,9 @@ def _cli_parser() -> argparse.ArgumentParser:
     p.add_argument("--test-image", action="store_true", help="Test technical graphic generation with brand card overlay")
     p.add_argument("--engagement-plan", action="store_true", help="Find relevant developer tweets & draft smart replies")
     p.add_argument("--engagement-live", action="store_true", help="Publish a smart reply to a top tech tweet")
-    p.add_argument("--copilot", action="store_true", help="Interactive 100% ban-proof desktop co-pilot for smart replies")
+    p.add_argument("--copilot", action="store_true", help="Interactive ban-proof desktop co-pilot for smart replies")
+    p.add_argument("--satellite-plan", action="store_true", help="Find tech discussions and draft satellite endorsements citing @aman179102")
+    p.add_argument("--satellite-live", action="store_true", help="Publish a satellite endorsement from the secondary account")
     p.add_argument("--sync-analytics", action="store_true", help="Sync real post metrics and calculate format performance")
     p.add_argument("--force", action="store_true", help="Bypass posting windows and daily limits")
     p.add_argument("--daemon", action="store_true", help="Run continuously in background mode")
@@ -69,6 +73,13 @@ def main() -> int:
         except TwitterError as exc:
             print(f"❌ Verification failed: {exc}")
             return 1
+
+    # Test Telegram connection mode
+    if getattr(args, "test_telegram", False):
+        from app.telegram_bot import test_telegram_ping
+        print("\n📲 Testing Telegram Bot Connection...")
+        ok = test_telegram_ping(settings)
+        return 0 if ok else 1
 
     # Sync Analytics mode
     if getattr(args, "sync_analytics", False):
@@ -284,7 +295,79 @@ def main() -> int:
             print(f"❌ Failed to post reply: {exc}\n")
             return 1
 
-    # 5. Continuous daemon mode
+    # 6. Satellite modes (Secondary Account SEO & Mentions Engine)
+    if getattr(args, "satellite_plan", False) or getattr(args, "satellite_live", False):
+        import asyncio
+        from datetime import datetime, timezone
+        from app.satellite import (
+            can_satellite_post_now,
+            draft_satellite_endorsement,
+            find_satellite_opportunities,
+            load_satellite_state,
+            post_satellite_reply,
+            save_satellite_state,
+        )
+
+        sat_state = load_satellite_state(settings.state_dir)
+        if not args.force and args.satellite_live:
+            ok, reason = can_satellite_post_now(sat_state, settings)
+            if not ok:
+                print(f"⏸️ Satellite cannot post right now: {reason}")
+                return 0
+
+        print(f"\n🛰️ [SATELLITE ENGINE] Scanning X for systems architecture discussions (Citing {settings.author_handle})...")
+        opps = asyncio.run(find_satellite_opportunities(settings))
+        if not opps:
+            print("ℹ️ No eligible satellite opportunities found right now.")
+            return 0
+
+        print(f"Found {len(opps)} relevant engineering threads:\n" + "=" * 70)
+        valid_opps = []
+        for idx, o in enumerate(opps, 1):
+            print(f"\n[{idx}] Tweet by @{o.author} ({o.likes} likes) | ID: {o.tweet_id}")
+            print(f"    Target: \"{o.text[:120]}...\"")
+            print(f"    Matched Repo: {o.matched_project['name']}")
+            reply, reason = draft_satellite_endorsement(o.text, o.author, o.matched_project, settings)
+            if reply:
+                o.draft_reply = reply
+                o.reasoning = reason
+                valid_opps.append(o)
+                print(f"    💬 Endorsement Draft: \"{reply}\"")
+                print(f"    💡 Strategic Angle:   {reason}")
+            else:
+                print(f"    ⚠️ Draft skipped: {reason}")
+
+        print("\n" + "=" * 70)
+        if not args.satellite_live:
+            print("💡 [SATELLITE PLAN COMPLETE] Run with '--satellite-live' to publish endorsement.\n")
+            return 0
+
+        if not valid_opps:
+            print("❌ No satellite endorsement passed generation. Skipping (fail-closed).\n")
+            return 0
+
+        target_opp = valid_opps[0]
+        print(f"\n🚀 Publishing satellite reply to @{target_opp.author} via secondary account ({settings.satellite_handle})...")
+        try:
+            sat_tweet_id = asyncio.run(post_satellite_reply(target_opp, target_opp.draft_reply, settings))
+            now_iso = datetime.now(timezone.utc).isoformat()
+            sat_state.setdefault("replies", []).append({
+                "satellite_tweet_id": sat_tweet_id,
+                "target_tweet_id": target_opp.tweet_id,
+                "target_author": target_opp.author,
+                "reply_text": target_opp.draft_reply,
+                "repo_cited": target_opp.matched_project["name"],
+                "replied_at": now_iso,
+            })
+            sat_state["last_replied_at"] = now_iso
+            save_satellite_state(settings.state_dir, sat_state)
+            print(f"🎉 Successfully posted satellite reply! URL: https://x.com/{settings.satellite_handle.strip('@')}/status/{sat_tweet_id}\n")
+            return 0
+        except Exception as exc:
+            print(f"❌ Failed to post satellite reply: {exc}\n")
+            return 1
+
+    # 7. Continuous daemon mode
     if args.daemon:
         run_loop(settings, live=args.live)
         return 0
@@ -381,8 +464,37 @@ def main() -> int:
     print(f"Author Branding:  {settings.author_name} ({settings.author_handle})")
     print("=" * 65 + "\n")
 
+    if getattr(args, "telegram", False):
+        from app.telegram_bot import send_telegram_draft
+        print("📲 Dispatching verified draft to Telegram with 1-Tap Mobile Button...")
+        source_url = getattr(best_story.item, "url", "") if best_story and best_story.item else ""
+        ok = send_telegram_draft(
+            draft=draft,
+            tweet_text=tweet_text,
+            img_path=img_path,
+            settings=settings,
+            quality_score=qg.score,
+            primary_source_url=source_url,
+        )
+        if ok:
+            record_post(
+                state,
+                best_story,
+                "telegram_dispatch",
+                tweet_text,
+                str(img_path) if img_path else "",
+                format_kind=best_story.source_kind,
+                quality_score=qg.score,
+            )
+            save_state(settings.state_dir, state)
+            print("🎉 Successfully dispatched to Telegram! Open Telegram on your phone to post in 1-tap with 0% ban risk.\n")
+            return 0
+        else:
+            print("❌ Failed to dispatch draft to Telegram.\n")
+            return 1
+
     if not args.live:
-        print("💡 [DRY-RUN COMPLETE] Run with '--live' to publish directly to X.")
+        print("💡 [DRY-RUN COMPLETE] Run with '--telegram' to send 1-Tap Mobile Button to Telegram, or '--live' to publish directly.")
         return 0
 
     # Post live
