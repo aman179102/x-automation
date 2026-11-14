@@ -22,6 +22,11 @@ logger = logging.getLogger("render-server")
 class HealthCheckHandler(BaseHTTPRequestHandler):
     settings: Settings = None  # Populated when server starts
 
+    def do_HEAD(self) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path in ("/", "/health", "/status"):
