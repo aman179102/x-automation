@@ -318,6 +318,150 @@ def trigger_telegram_post(
     return False
 
 
+def build_job_main_menu() -> tuple[str, dict]:
+    """
+    Builds the top-level interactive popup with Paid and Unpaid options.
+    """
+    text = (
+        "💼 <b>SELECT REMOTE WORK &amp; COLLABORATION</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Aapko kis tarah ki <b>100% Remote</b> opportunity hunt karni hai?\n\n"
+        "Option select karein:"
+    )
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "💰 Paid Opportunities (Intern, Gig, Contract...)", "callback_data": "job_menu_paid"}
+            ],
+            [
+                {"text": "🆓 Free / Unpaid / Collab (Intern, OSS, Equity...)", "callback_data": "job_menu_unpaid"}
+            ],
+            [
+                {"text": "🌐 Any Remote Work (Surprise Me)", "callback_data": "job_search_any_all"}
+            ]
+        ]
+    }
+    return text, keyboard
+
+
+def build_job_paid_menu() -> tuple[str, dict]:
+    """
+    Builds the sub-menu for Paid remote opportunities.
+    """
+    text = (
+        "💰 <b>PAID REMOTE OPPORTUNITIES</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Kaunsa paid remote work search karna hai?\n\n"
+        "Select your preferred paid role:"
+    )
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "🎓 Paid Intern", "callback_data": "job_search_paid_intern"},
+                {"text": "⚡ Quick Gig / MVP", "callback_data": "job_search_gig_mvp"},
+            ],
+            [
+                {"text": "💼 Freelance Project", "callback_data": "job_search_freelance"},
+                {"text": "📜 Contract Role", "callback_data": "job_search_contract"},
+            ],
+            [
+                {"text": "🏢 Full-Time Remote", "callback_data": "job_search_fulltime"},
+                {"text": "⏱️ Part-Time Remote", "callback_data": "job_search_parttime"},
+            ],
+            [
+                {"text": "🪙 Code Bounties", "callback_data": "job_search_bounty"},
+                {"text": "🎲 Any Paid Work", "callback_data": "job_search_any_paid"},
+            ],
+            [
+                {"text": "🔙 Back to Main Menu", "callback_data": "job_menu_main"},
+            ]
+        ]
+    }
+    return text, keyboard
+
+
+def build_job_unpaid_menu() -> tuple[str, dict]:
+    """
+    Builds the sub-menu for Free / Unpaid / Collaboration remote opportunities.
+    """
+    text = (
+        "🆓 <b>FREE &amp; UNPAID COLLABORATIONS</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Kaunsi remote collaboration ya experience search karni hai?\n\n"
+        "Select your preferred category:"
+    )
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "🆓 Unpaid Intern", "callback_data": "job_search_unpaid_intern"},
+                {"text": "🤝 Open Source Collab", "callback_data": "job_search_opensource"},
+            ],
+            [
+                {"text": "🚀 Co-Founder / Equity", "callback_data": "job_search_cofounder"},
+                {"text": "🏆 Hackathon Teammate", "callback_data": "job_search_hackathon"},
+            ],
+            [
+                {"text": "🎗️ Volunteer Dev / NGO", "callback_data": "job_search_volunteer"},
+                {"text": "🎲 Any Unpaid Collab", "callback_data": "job_search_any_unpaid"},
+            ],
+            [
+                {"text": "🔙 Back to Main Menu", "callback_data": "job_menu_main"},
+            ]
+        ]
+    }
+    return text, keyboard
+
+
+def _send_telegram_menu(chat_id: str, bot_token: str, text: str, keyboard: dict) -> bool:
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            resp = client.post(
+                f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": text,
+                    "parse_mode": "HTML",
+                    "reply_markup": json.dumps(keyboard),
+                },
+            )
+            return resp.status_code == 200
+    except Exception as exc:
+        logger.warning("Failed to send telegram menu: %s", exc)
+        return False
+
+
+def _edit_telegram_menu(chat_id: str, bot_token: str, message_id: int, text: str, keyboard: dict) -> bool:
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            resp = client.post(
+                f"{TELEGRAM_API_BASE}/bot{bot_token}/editMessageText",
+                json={
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "text": text,
+                    "parse_mode": "HTML",
+                    "reply_markup": json.dumps(keyboard),
+                },
+            )
+            if resp.status_code == 200:
+                return True
+            return _send_telegram_menu(chat_id, bot_token, text, keyboard)
+    except Exception:
+        return _send_telegram_menu(chat_id, bot_token, text, keyboard)
+
+
+def _answer_callback_query(bot_token: str, callback_query_id: str, text: Optional[str] = None) -> bool:
+    payload: dict[str, Any] = {"callback_query_id": callback_query_id}
+    if text:
+        payload["text"] = text
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/answerCallbackQuery", json=payload)
+            return resp.status_code == 200
+    except Exception:
+        return False
+
+
 def _send_telegram_text(chat_id: str, bot_token: str, html_text: str) -> bool:
     try:
         with httpx.Client(timeout=15.0) as client:
@@ -552,10 +696,61 @@ def run_telegram_listener(settings: Settings) -> None:
                 updates = resp.json().get("result", [])
                 for u in updates:
                     offset = u["update_id"] + 1
+
+                    # 1. Process Callback Queries (Inline Button Taps)
+                    cb = u.get("callback_query")
+                    if cb:
+                        cb_id = str(cb.get("id", ""))
+                        cb_data = str(cb.get("data", ""))
+                        cb_chat_id = str(cb.get("message", {}).get("chat", {}).get("id") or cb.get("from", {}).get("id", ""))
+                        cb_msg_id = cb.get("message", {}).get("message_id")
+
+                        if cb_data == "job_menu_main":
+                            _answer_callback_query(bot_token, cb_id)
+                            m_text, m_kb = build_job_main_menu()
+                            if cb_msg_id:
+                                _edit_telegram_menu(cb_chat_id, bot_token, cb_msg_id, m_text, m_kb)
+                            else:
+                                _send_telegram_menu(cb_chat_id, bot_token, m_text, m_kb)
+                            continue
+
+                        elif cb_data == "job_menu_paid":
+                            _answer_callback_query(bot_token, cb_id)
+                            m_text, m_kb = build_job_paid_menu()
+                            if cb_msg_id:
+                                _edit_telegram_menu(cb_chat_id, bot_token, cb_msg_id, m_text, m_kb)
+                            else:
+                                _send_telegram_menu(cb_chat_id, bot_token, m_text, m_kb)
+                            continue
+
+                        elif cb_data == "job_menu_unpaid":
+                            _answer_callback_query(bot_token, cb_id)
+                            m_text, m_kb = build_job_unpaid_menu()
+                            if cb_msg_id:
+                                _edit_telegram_menu(cb_chat_id, bot_token, cb_msg_id, m_text, m_kb)
+                            else:
+                                _send_telegram_menu(cb_chat_id, bot_token, m_text, m_kb)
+                            continue
+
+                        elif cb_data.startswith("job_search_"):
+                            cat = cb_data.replace("job_search_", "")
+                            from app.hiring_radar import CATEGORY_CONFIG, trigger_telegram_hiring
+                            cat_title = CATEGORY_CONFIG.get(cat, {}).get("title", cat.replace("_", " ").title())
+                            _answer_callback_query(bot_token, cb_id, text=f"Hunting {cat_title}...")
+                            _send_telegram_text(
+                                cb_chat_id,
+                                bot_token,
+                                f"🔍 <i>Hunting remote <b>{html.escape(cat_title)}</b> on X live...</i>",
+                            )
+                            trigger_telegram_hiring(settings, category=cat, target_chat_id=cb_chat_id)
+                            continue
+
+                    # 2. Process Chat Messages
                     msg = u.get("message") or u.get("edited_message")
                     if not msg:
                         continue
-                    text = (msg.get("text") or "").strip().lower()
+                    raw_text = (msg.get("text") or "").strip()
+                    text = raw_text.lower()
                     chat_id = str(msg.get("chat", {}).get("id", ""))
 
                     if not text:
@@ -565,7 +760,7 @@ def run_telegram_listener(settings: Settings) -> None:
                         help_text = (
                             "👋 <b>Welcome to Aman's X-Automation Co-Pilot!</b>\n\n"
                             "Commands you can send me anytime:\n"
-                            "• <b>/job</b> - Hunt active remote jobs, paid gigs, MVPs & internships\n"
+                            "• <b>/job</b> - Interactive popup for 100% Remote Opportunities (Paid & Unpaid)\n"
                             "• <b>/cmt</b> - Find top tech discussion & get 1-Tap smart comment\n"
                             "• <b>/new</b> - Generate a fresh high-IQ post & visual card\n"
                             "• <b>/showcase</b> - Feature your projects (Storage, Analytics, PodVoice)\n"
@@ -574,58 +769,56 @@ def run_telegram_listener(settings: Settings) -> None:
                             "• <b>/ping</b> - Check connection\n\n"
                             "⚡ Every post, comment & job pitch arrives with a 1-Tap button to publish from your phone with 0% ban risk!"
                         )
-                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
-                            "chat_id": chat_id,
-                            "text": help_text,
-                            "parse_mode": "HTML",
-                        })
+                        _send_telegram_text(chat_id, bot_token, help_text)
                     elif text == "/ping":
-                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
-                            "chat_id": chat_id,
-                            "text": "🟢 Co-Pilot is online, healthy, and ready on Render 24/7!",
-                        })
-                    elif text in ("/job", "/jobs", "/hiring", "/remote", "/gig", "/intern", "/startup"):
-                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
-                            "chat_id": chat_id,
-                            "text": "🔍 <i>Hunting active remote startup jobs, paid gigs & internships on X...</i>",
-                            "parse_mode": "HTML",
-                        })
-                        from app.hiring_radar import trigger_telegram_hiring
-                        trigger_telegram_hiring(settings, target_chat_id=chat_id)
+                        _send_telegram_text(
+                            chat_id,
+                            bot_token,
+                            "🟢 Co-Pilot is online, healthy, and ready on Render 24/7!",
+                        )
+                    elif text in ("/job", "/jobs", "/remote", "/work", "/hiring", "/startup"):
+                        m_text, m_kb = build_job_main_menu()
+                        _send_telegram_menu(chat_id, bot_token, m_text, m_kb)
+                    elif text in ("/job paid", "/jobs paid", "/paid"):
+                        m_text, m_kb = build_job_paid_menu()
+                        _send_telegram_menu(chat_id, bot_token, m_text, m_kb)
+                    elif text in ("/job unpaid", "/jobs unpaid", "/unpaid", "/collab", "/free"):
+                        m_text, m_kb = build_job_unpaid_menu()
+                        _send_telegram_menu(chat_id, bot_token, m_text, m_kb)
                     elif text in ("/cmt", "/comment", "/reply", "/engage"):
-                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
-                            "chat_id": chat_id,
-                            "text": "🔍 <i>Scanning X for trending engineering discussions & drafting high-IQ smart reply...</i>",
-                            "parse_mode": "HTML",
-                        })
+                        _send_telegram_text(
+                            chat_id,
+                            bot_token,
+                            "🔍 <i>Scanning X for trending engineering discussions & drafting high-IQ smart reply...</i>",
+                        )
                         trigger_telegram_comment(settings, target_chat_id=chat_id)
                     elif text in ("/new", "/draft", "/post"):
-                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
-                            "chat_id": chat_id,
-                            "text": "⚙️ <i>Researching latest engineering developments & generating draft...</i>",
-                            "parse_mode": "HTML",
-                        })
+                        _send_telegram_text(
+                            chat_id,
+                            bot_token,
+                            "⚙️ <i>Researching latest engineering developments & generating draft...</i>",
+                        )
                         trigger_telegram_post(settings, force=True)
                     elif text in ("/showcase", "/project"):
-                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
-                            "chat_id": chat_id,
-                            "text": "⚙️ <i>Preparing project showcase for Aman's open-source architecture...</i>",
-                            "parse_mode": "HTML",
-                        })
+                        _send_telegram_text(
+                            chat_id,
+                            bot_token,
+                            "⚙️ <i>Preparing project showcase for Aman's open-source architecture...</i>",
+                        )
                         trigger_telegram_post(settings, preferred_kind="showcase", force=True)
                     elif text in ("/deepdive", "/deep_dive"):
-                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
-                            "chat_id": chat_id,
-                            "text": "⚙️ <i>Formulating systems architecture deep dive...</i>",
-                            "parse_mode": "HTML",
-                        })
+                        _send_telegram_text(
+                            chat_id,
+                            bot_token,
+                            "⚙️ <i>Formulating systems architecture deep dive...</i>",
+                        )
                         trigger_telegram_post(settings, preferred_kind="deep_dive", force=True)
                     elif text in ("/discussion", "/question"):
-                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
-                            "chat_id": chat_id,
-                            "text": "⚙️ <i>Crafting high-signal developer discussion dilemma...</i>",
-                            "parse_mode": "HTML",
-                        })
+                        _send_telegram_text(
+                            chat_id,
+                            bot_token,
+                            "⚙️ <i>Crafting high-signal developer discussion dilemma...</i>",
+                        )
                         trigger_telegram_post(settings, preferred_kind="discussion", force=True)
 
         except KeyboardInterrupt:

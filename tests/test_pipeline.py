@@ -323,6 +323,87 @@ class TestSecondPassCorrectness(unittest.TestCase):
         self.assertIn("github.com/aman179102", pitch)
         self.assertLessEqual(len(pitch), 280)
 
+    # 10. Interactive Hierarchical /job Menu & Category Tests
+    def test_job_interactive_menus(self):
+        """Interactive /job menus must provide clear Paid, Unpaid, and All Remote navigation."""
+        from app.telegram_bot import (
+            build_job_main_menu,
+            build_job_paid_menu,
+            build_job_unpaid_menu,
+        )
+
+        # Main Menu
+        main_text, main_kb = build_job_main_menu()
+        self.assertIn("SELECT REMOTE WORK", main_text)
+        main_callbacks = [
+            btn["callback_data"]
+            for row in main_kb["inline_keyboard"]
+            for btn in row
+        ]
+        self.assertIn("job_menu_paid", main_callbacks)
+        self.assertIn("job_menu_unpaid", main_callbacks)
+        self.assertIn("job_search_any_all", main_callbacks)
+
+        # Paid Menu
+        paid_text, paid_kb = build_job_paid_menu()
+        self.assertIn("PAID REMOTE OPPORTUNITIES", paid_text)
+        paid_callbacks = [
+            btn["callback_data"]
+            for row in paid_kb["inline_keyboard"]
+            for btn in row
+        ]
+        self.assertIn("job_search_paid_intern", paid_callbacks)
+        self.assertIn("job_search_gig_mvp", paid_callbacks)
+        self.assertIn("job_search_freelance", paid_callbacks)
+        self.assertIn("job_search_contract", paid_callbacks)
+        self.assertIn("job_search_fulltime", paid_callbacks)
+        self.assertIn("job_search_bounty", paid_callbacks)
+        self.assertIn("job_menu_main", paid_callbacks)
+
+        # Unpaid Menu
+        unpaid_text, unpaid_kb = build_job_unpaid_menu()
+        self.assertIn("UNPAID COLLABORATIONS", unpaid_text)
+        unpaid_callbacks = [
+            btn["callback_data"]
+            for row in unpaid_kb["inline_keyboard"]
+            for btn in row
+        ]
+        self.assertIn("job_search_unpaid_intern", unpaid_callbacks)
+        self.assertIn("job_search_opensource", unpaid_callbacks)
+        self.assertIn("job_search_cofounder", unpaid_callbacks)
+        self.assertIn("job_search_hackathon", unpaid_callbacks)
+        self.assertIn("job_search_volunteer", unpaid_callbacks)
+        self.assertIn("job_menu_main", unpaid_callbacks)
+
+    def test_strict_remote_disqualification(self):
+        """Tweets with explicit on-site/in-office mandates must be strictly disqualified."""
+        from app.hiring_radar import is_valid_hiring_tweet
+
+        mock_tweet = MagicMock()
+        mock_tweet.id = "12345"
+        mock_tweet.user.screen_name = "recruiter_john"
+        mock_tweet.text = "Hiring software engineer! In-office only at our Bangalore HQ."
+        self.assertFalse(is_valid_hiring_tweet(mock_tweet, set(), "@aman179102"))
+
+        mock_tweet.text = "Looking for frontend dev. Must relocate to San Francisco office."
+        self.assertFalse(is_valid_hiring_tweet(mock_tweet, set(), "@aman179102"))
+
+        mock_tweet.text = "Looking for a remote fullstack dev to build an MVP. DM me!"
+        self.assertTrue(is_valid_hiring_tweet(mock_tweet, set(), "@aman179102"))
+
+    def test_category_queries_exist(self):
+        """Every category must have non-empty search queries."""
+        from app.hiring_radar import CATEGORY_CONFIG, get_queries_for_category
+
+        categories_to_check = [
+            "paid_intern", "gig_mvp", "freelance", "contract", "fulltime",
+            "unpaid_intern", "opensource", "cofounder", "hackathon", "volunteer",
+            "any_paid", "any_unpaid", "any_all"
+        ]
+        for cat in categories_to_check:
+            queries = get_queries_for_category(cat)
+            self.assertGreater(len(queries), 0, f"Category {cat} has no search queries")
+
 
 if __name__ == "__main__":
     unittest.main()
