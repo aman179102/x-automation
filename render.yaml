@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: x-automation-bot
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.server
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: AUTHOR_NAME
+        value: Aman Kumar
+      - key: AUTHOR_HANDLE
+        value: "@aman179102"
+      - key: AUTHOR_TITLE
+        value: Systems & AI Engineer
+      - key: GITHUB_USER
+        value: aman179102
+      - key: IMAGE_MODE
+        value: ai
+      - key: TIMEZONE
+        value: Asia/Kolkata
+      - key: DAILY_POST_CAP
+        value: "4"
+      - key: MIN_SPACING_MINUTES
+        value: "120"
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
