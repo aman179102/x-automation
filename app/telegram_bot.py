@@ -231,3 +231,200 @@ def test_telegram_ping(settings: Settings) -> bool:
     except Exception as exc:
         print(f"❌ Connection failed: {exc}")
         return False
+
+
+def trigger_telegram_post(
+    settings: Settings,
+    preferred_kind: Optional[str] = None,
+    force: bool = True,
+) -> bool:
+    """
+    Executes a full research, verification, quality gate, card rendering, and dispatch cycle to Telegram.
+    """
+    import time
+    from app.compliance import can_post_now
+    from app.image import render_branded_image, validate_image_consistency
+    from app.quality import evaluate_quality_gate
+    from app.scheduler import _pick_balanced_format
+    from app.select import select_best_story
+    from app.sources import fetch_all_stories
+    from app.state import load_state, record_post, save_state
+    from app.verify import verify_draft_against_source
+    from app.writer import Writer
+
+    state = load_state(settings.state_dir)
+    if not force:
+        ok, reason = can_post_now(state, settings, force=False)
+        if not ok:
+            logger.info("Posting window or limits active: %s", reason)
+            return False
+
+    kind = preferred_kind or _pick_balanced_format(state.get("posts", []))
+    stories = fetch_all_stories(settings)
+    best_story = select_best_story(stories, state, preferred_kind=kind)
+    if not best_story:
+        best_story = select_best_story(stories, state)
+    if not best_story:
+        logger.warning("No eligible stories found.")
+        return False
+
+    writer = Writer(settings)
+    draft = writer.create_draft(best_story)
+    tweet_text = writer.format_tweet_text(draft)
+
+    # Fact verification for news
+    if best_story.source_kind == "news":
+        article_text = best_story.facts.get("article_text", "")
+        verification = verify_draft_against_source(draft.body, best_story.title, article_text, settings)
+        if not verification.passed:
+            logger.warning("Fact check rejected: %s", verification.rejection_reason)
+            return False
+
+    qg = evaluate_quality_gate(draft, tweet_text, state.get("posts", []), settings, has_image=draft.has_image)
+    if not qg.passed or qg.score < 8.0:
+        logger.warning("Quality gate rejected (score=%.1f): %s", qg.score, qg.verdict)
+        return False
+
+    img_path = None
+    if draft.has_image:
+        ts = int(time.time())
+        candidate_img = settings.output_dir / f"tweet_{ts}.jpg"
+        img_path = render_branded_image(draft, settings, candidate_img)
+        valid_img, _ = validate_image_consistency(draft, img_path)
+        if not valid_img:
+            img_path = None
+
+    source_url = getattr(best_story.item, "url", "") if best_story and best_story.item else ""
+    ok = send_telegram_draft(
+        draft=draft,
+        tweet_text=tweet_text,
+        img_path=img_path,
+        settings=settings,
+        quality_score=qg.score,
+        primary_source_url=source_url,
+    )
+    if ok:
+        record_post(
+            state,
+            best_story,
+            "telegram_dispatch",
+            tweet_text,
+            str(img_path) if img_path else "",
+            format_kind=best_story.source_kind,
+            quality_score=qg.score,
+        )
+        save_state(settings.state_dir, state)
+        return True
+    return False
+
+
+def run_telegram_listener(settings: Settings) -> None:
+    """
+    Runs a continuous Telegram polling listener so Aman can generate drafts
+    by sending /new, /showcase, /deepdive, or /discussion directly inside Telegram!
+    """
+    import time
+    bot_token = settings.telegram_bot_token.strip()
+    if not bot_token:
+        print("❌ TELEGRAM_BOT_TOKEN is missing in .env.")
+        return
+
+    print("\n🤖 [TELEGRAM INTERACTIVE BOT RUNNING]")
+    print(f"   Connected to @x_akk_bot (Chat ID: {settings.telegram_chat_id})")
+    print("   Available Telegram commands in chat:")
+    print("   • /new        - Generate new balanced draft & visual card")
+    print("   • /showcase   - Feature personal open-source project")
+    print("   • /deepdive   - Systems architecture deep dive")
+    print("   • /discussion - High-signal developer discussion")
+    print("   • /ping       - Check bot status")
+    print("\n   Listening for incoming messages... (Press Ctrl+C to stop)\n")
+
+    offset = 0
+    # Clear old pending updates
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(f"{TELEGRAM_API_BASE}/bot{bot_token}/getUpdates?offset=-1")
+            if resp.status_code == 200:
+                data = resp.json().get("result", [])
+                if data:
+                    offset = data[-1]["update_id"] + 1
+    except Exception:
+        pass
+
+    while True:
+        try:
+            with httpx.Client(timeout=35.0) as client:
+                resp = client.get(f"{TELEGRAM_API_BASE}/bot{bot_token}/getUpdates?offset={offset}&timeout=25")
+                if resp.status_code != 200:
+                    time.sleep(2)
+                    continue
+
+                updates = resp.json().get("result", [])
+                for u in updates:
+                    offset = u["update_id"] + 1
+                    msg = u.get("message") or u.get("edited_message")
+                    if not msg:
+                        continue
+                    text = (msg.get("text") or "").strip().lower()
+                    chat_id = str(msg.get("chat", {}).get("id", ""))
+
+                    if not text:
+                        continue
+
+                    if text in ("/start", "/help"):
+                        help_text = (
+                            "👋 <b>Welcome to Aman's X-Automation Co-Pilot!</b>\n\n"
+                            "Commands you can send me anytime:\n"
+                            "• <b>/new</b> - Generate a fresh high-IQ post & visual card\n"
+                            "• <b>/showcase</b> - Feature your projects (Storage, Analytics, PodVoice)\n"
+                            "• <b>/deepdive</b> - Systems & Architecture deep dive\n"
+                            "• <b>/discussion</b> - Engineering discussion question\n"
+                            "• <b>/ping</b> - Check connection\n\n"
+                            "⚡ Every post arrives with a 1-Tap button to publish from your phone with 0% ban risk!"
+                        )
+                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
+                            "chat_id": chat_id,
+                            "text": help_text,
+                            "parse_mode": "HTML",
+                        })
+                    elif text == "/ping":
+                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
+                            "chat_id": chat_id,
+                            "text": "🟢 Co-Pilot is online, healthy, and ready!",
+                        })
+                    elif text in ("/new", "/draft", "/post"):
+                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
+                            "chat_id": chat_id,
+                            "text": "⚙️ <i>Researching latest engineering developments & generating draft...</i>",
+                            "parse_mode": "HTML",
+                        })
+                        trigger_telegram_post(settings, force=True)
+                    elif text in ("/showcase", "/project"):
+                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
+                            "chat_id": chat_id,
+                            "text": "⚙️ <i>Preparing project showcase for Aman's open-source architecture...</i>",
+                            "parse_mode": "HTML",
+                        })
+                        trigger_telegram_post(settings, preferred_kind="showcase", force=True)
+                    elif text in ("/deepdive", "/deep_dive"):
+                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
+                            "chat_id": chat_id,
+                            "text": "⚙️ <i>Formulating systems architecture deep dive...</i>",
+                            "parse_mode": "HTML",
+                        })
+                        trigger_telegram_post(settings, preferred_kind="deep_dive", force=True)
+                    elif text in ("/discussion", "/question"):
+                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
+                            "chat_id": chat_id,
+                            "text": "⚙️ <i>Crafting high-signal developer discussion dilemma...</i>",
+                            "parse_mode": "HTML",
+                        })
+                        trigger_telegram_post(settings, preferred_kind="discussion", force=True)
+
+        except KeyboardInterrupt:
+            print("\n👋 Telegram Bot listener stopped.")
+            break
+        except Exception as exc:
+            logger.warning("Listener loop encountered error: %s", exc)
+            time.sleep(3)
+

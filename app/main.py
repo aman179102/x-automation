@@ -39,6 +39,7 @@ def _cli_parser() -> argparse.ArgumentParser:
 
     p.add_argument("--check-account", action="store_true", help="Verify Twitter credentials and account details")
     p.add_argument("--test-telegram", action="store_true", help="Send a test ping to verify Telegram Bot configuration")
+    p.add_argument("--telegram-bot", action="store_true", help="Run interactive Telegram bot listener (/new, /showcase, etc.)")
     p.add_argument("--plan", action="store_true", help="List ranked candidates across diverse formats with scores")
     p.add_argument("--showcase", action="store_true", help="Force post an open-source project showcase")
     p.add_argument("--deep-dive", action="store_true", help="Force post an engineering deep dive")
@@ -80,6 +81,12 @@ def main() -> int:
         print("\n📲 Testing Telegram Bot Connection...")
         ok = test_telegram_ping(settings)
         return 0 if ok else 1
+
+    # Interactive Telegram Bot listener mode
+    if getattr(args, "telegram_bot", False):
+        from app.telegram_bot import run_telegram_listener
+        run_telegram_listener(settings)
+        return 0
 
     # Sync Analytics mode
     if getattr(args, "sync_analytics", False):
