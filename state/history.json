@@ -7,7 +7,8 @@
     "https://blog.cloudflare.com/spend-management",
     "https://github.com/aman179102",
     "https://github.com/aman179102/distributed-file-storage-service",
-    "https://github.com/benbjohnson/litestream"
+    "https://github.com/benbjohnson/litestream",
+    "https://github.com/dragonflydb/dragonfly"
   ],
   "posts": [
     {
@@ -78,7 +79,18 @@
       "posted_at": "2026-11-14T18:57:35.962678+00:00",
       "text": "Litestream streams SQLite WAL 4KB pages to S3. Zero app code changes, negligible overhead, adds robust cloud PITR disaster recovery.\n\nProject: https://github.com/benbjohnson/litestream\n\n#OpenSource #SQLite",
       "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1794682654.jpg"
+    },
+    {
+      "tweet_id": "telegram_dispatch",
+      "title": "Dragonfly: Modern Multi-Threaded Redis Alternative",
+      "url": "https://github.com/dragonflydb/dragonfly",
+      "category": "database",
+      "format_kind": "oss_discovery",
+      "quality_score": 9.2,
+      "posted_at": "2026-11-14T19:11:26.829155+00:00",
+      "text": "Dragonfly uses shared-nothing multi-threading and io_uring instead of single-threaded Redis, scaling throughput on multi-core servers.\n\nProject: https://github.com/dragonflydb/dragonfly\n\n#HighPerformance #OpenSource",
+      "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1794683484.jpg"
     }
   ],
-  "last_posted_at": "2026-11-14T18:57:35.962678+00:00"
+  "last_posted_at": "2026-11-14T19:11:26.829155+00:00"
 }
