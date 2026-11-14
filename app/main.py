@@ -41,6 +41,7 @@ def _cli_parser() -> argparse.ArgumentParser:
     p.add_argument("--test-telegram", action="store_true", help="Send a test ping to verify Telegram Bot configuration")
     p.add_argument("--telegram-bot", action="store_true", help="Run interactive Telegram bot listener (/new, /showcase, etc.)")
     p.add_argument("--telegram-comment", action="store_true", help="Find discussion and send 1-Tap comment draft to Telegram")
+    p.add_argument("--telegram-hiring", action="store_true", help="Find remote startup job/gig and send 1-Tap pitch to Telegram")
     p.add_argument("--plan", action="store_true", help="List ranked candidates across diverse formats with scores")
     p.add_argument("--showcase", action="store_true", help="Force post an open-source project showcase")
     p.add_argument("--deep-dive", action="store_true", help="Force post an engineering deep dive")
@@ -94,6 +95,13 @@ def main() -> int:
         from app.telegram_bot import trigger_telegram_comment
         print("\n🔍 Finding technical discussion & dispatching 1-Tap comment to Telegram...")
         ok = trigger_telegram_comment(settings)
+        return 0 if ok else 1
+
+    # Telegram 1-Tap Remote Hiring Dispatch mode
+    if getattr(args, "telegram_hiring", False):
+        from app.hiring_radar import trigger_telegram_hiring
+        print("\n💼 Hunting remote startup jobs & dispatching 1-Tap pitch to Telegram...")
+        ok = trigger_telegram_hiring(settings)
         return 0 if ok else 1
 
     # Sync Analytics mode

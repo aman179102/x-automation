@@ -286,6 +286,43 @@ class TestSecondPassCorrectness(unittest.TestCase):
         self.assertIn("in_reply_to=2120011070081302689", markup)
         self.assertIn("x.com/intent/post", markup)
 
+    # 9. Remote Hiring Radar Classification & Pitch Tests
+    def test_hiring_role_classification_and_budget(self):
+        """Classifies role types and extracts budget accurately."""
+        from app.hiring_radar import classify_role_type, extract_budget
+
+        t1 = "Looking for a Website Developer for our startup project. Budget $450. DM me!"
+        self.assertEqual(classify_role_type(t1), "WEB_DEVELOPMENT")
+        self.assertEqual(extract_budget(t1), "$450")
+
+        t2 = "Hiring a paid intern for Python & FastAPI backend development (Remote, India)."
+        self.assertEqual(classify_role_type(t2), "PAID_INTERN")
+
+        t3 = "Hiring Golang Developer for high-performance distributed microservices. $70-100/hr."
+        self.assertEqual(classify_role_type(t3), "GOLANG_BACKEND")
+        self.assertEqual(extract_budget(t3), "$70-100/hr")
+
+    @patch("app.hiring_radar.generate_json")
+    def test_draft_hiring_pitch_includes_portfolio(self, mock_gen):
+        """Hiring pitch must include Aman's portfolio and match requirements."""
+        from app.hiring_radar import HiringOpportunity, draft_hiring_pitch
+
+        opp = HiringOpportunity(
+            tweet_id="999",
+            author="startup_ceo",
+            text="Need a remote dev to build our MVP fast.",
+            likes=10,
+            created_at="",
+            role_type="STARTUP_MVP_GIG",
+        )
+        mock_gen.return_value = {
+            "pitch": "Hey @startup_ceo! Can build and ship this MVP fast. Check my work: https://github.com/aman179102. DMs open!",
+            "reasoning": "Direct match for fast MVP turnaround.",
+        }
+        pitch, reason = draft_hiring_pitch(opp, self.settings)
+        self.assertIn("github.com/aman179102", pitch)
+        self.assertLessEqual(len(pitch), 280)
+
 
 if __name__ == "__main__":
     unittest.main()

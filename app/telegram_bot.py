@@ -565,13 +565,14 @@ def run_telegram_listener(settings: Settings) -> None:
                         help_text = (
                             "👋 <b>Welcome to Aman's X-Automation Co-Pilot!</b>\n\n"
                             "Commands you can send me anytime:\n"
+                            "• <b>/job</b> - Hunt active remote jobs, paid gigs, MVPs & internships\n"
+                            "• <b>/cmt</b> - Find top tech discussion & get 1-Tap smart comment\n"
                             "• <b>/new</b> - Generate a fresh high-IQ post & visual card\n"
                             "• <b>/showcase</b> - Feature your projects (Storage, Analytics, PodVoice)\n"
                             "• <b>/deepdive</b> - Systems & Architecture deep dive\n"
                             "• <b>/discussion</b> - Engineering discussion question\n"
-                            "• <b>/cmt</b> - Find top tech discussion & get 1-Tap smart comment\n"
                             "• <b>/ping</b> - Check connection\n\n"
-                            "⚡ Every post & comment arrives with a 1-Tap button to publish from your phone with 0% ban risk!"
+                            "⚡ Every post, comment & job pitch arrives with a 1-Tap button to publish from your phone with 0% ban risk!"
                         )
                         client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
                             "chat_id": chat_id,
@@ -583,6 +584,14 @@ def run_telegram_listener(settings: Settings) -> None:
                             "chat_id": chat_id,
                             "text": "🟢 Co-Pilot is online, healthy, and ready on Render 24/7!",
                         })
+                    elif text in ("/job", "/jobs", "/hiring", "/remote", "/gig", "/intern", "/startup"):
+                        client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
+                            "chat_id": chat_id,
+                            "text": "🔍 <i>Hunting active remote startup jobs, paid gigs & internships on X...</i>",
+                            "parse_mode": "HTML",
+                        })
+                        from app.hiring_radar import trigger_telegram_hiring
+                        trigger_telegram_hiring(settings, target_chat_id=chat_id)
                     elif text in ("/cmt", "/comment", "/reply", "/engage"):
                         client.post(f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage", json={
                             "chat_id": chat_id,

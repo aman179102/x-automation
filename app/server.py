@@ -65,6 +65,15 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
             self.end_headers()
             resp = {"status": "dispatched" if ok else "failed", "type": "comment"}
             self.wfile.write(json.dumps(resp).encode("utf-8"))
+        elif parsed.path in ("/trigger_hiring", "/trigger-hiring", "/job"):
+            logger.info("Triggering Telegram hiring lead via HTTP request...")
+            from app.hiring_radar import trigger_telegram_hiring
+            ok = trigger_telegram_hiring(self.settings)
+            self.send_response(200 if ok else 500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            resp = {"status": "dispatched" if ok else "failed", "type": "hiring"}
+            self.wfile.write(json.dumps(resp).encode("utf-8"))
         else:
             self.send_response(404)
             self.end_headers()
