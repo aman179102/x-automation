@@ -8,7 +8,8 @@
     "https://github.com/aman179102",
     "https://github.com/aman179102/distributed-file-storage-service",
     "https://github.com/benbjohnson/litestream",
-    "https://github.com/dragonflydb/dragonfly"
+    "https://github.com/dragonflydb/dragonfly",
+    "https://github.com/aman179102/real-time-analytics-pipeline"
   ],
   "posts": [
     {
@@ -90,7 +91,18 @@
       "posted_at": "2026-11-14T19:11:26.829155+00:00",
       "text": "Dragonfly uses shared-nothing multi-threading and io_uring instead of single-threaded Redis, scaling throughput on multi-core servers.\n\nProject: https://github.com/dragonflydb/dragonfly\n\n#HighPerformance #OpenSource",
       "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1794683484.jpg"
+    },
+    {
+      "tweet_id": "telegram_dispatch",
+      "title": "Real-Time Streaming Analytics Pipeline",
+      "url": "https://github.com/aman179102/real-time-analytics-pipeline",
+      "category": "architecture",
+      "format_kind": "showcase",
+      "quality_score": 9.2,
+      "posted_at": "2026-11-16T13:01:53.728988+00:00",
+      "text": "Built a real-time analytics pipeline using FastAPI, TimescaleDB, and Redis Streams. Used chunk compression + adaptive sampling to handle bursty event streams smoothly.\n\nRepo: https://github.com/aman179102/real-time-analytics-pipeline\n\n#SystemDesign #Python",
+      "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1794834111.jpg"
     }
   ],
-  "last_posted_at": "2026-11-14T19:11:26.829155+00:00"
+  "last_posted_at": "2026-11-16T13:01:53.728988+00:00"
 }
