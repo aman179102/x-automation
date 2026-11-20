@@ -10,7 +10,8 @@
     "https://github.com/benbjohnson/litestream",
     "https://github.com/dragonflydb/dragonfly",
     "https://github.com/aman179102/real-time-analytics-pipeline",
-    "https://github.com/aman179102/podvoice"
+    "https://github.com/aman179102/podvoice",
+    "https://aws.amazon.com/blogs/architecture/aderant-modernizes-analytics-data-pipeline-with-apache-iceberg-and-aws-lambda"
   ],
   "posts": [
     {
@@ -114,7 +115,18 @@
       "posted_at": "2026-11-16T13:05:20.333871+00:00",
       "text": "Running Coqui XTTS v2 offline for Podvoice. Local CPU/GPU execution eliminates cloud API costs and data leakage, trading rendering speed for total data privacy.\n\nRepo: https://github.com/aman179102/podvoice\n\n#Python #LocalAI",
       "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1794834318.jpg"
+    },
+    {
+      "tweet_id": "telegram_dispatch",
+      "title": "Aderant modernizes analytics data pipeline with Apache Iceberg and AWS Lambda",
+      "url": "https://aws.amazon.com/blogs/architecture/aderant-modernizes-analytics-data-pipeline-with-apache-iceberg-and-aws-lambda",
+      "category": "architecture",
+      "format_kind": "news",
+      "quality_score": 8.6,
+      "posted_at": "2026-11-20T13:32:06.248670+00:00",
+      "text": "Aderant modernized its analytics pipeline using Apache Iceberg and AWS Lambda, replacing 15-min batches with single-digit second CDC event processing.\n\nSource: AWS Architecture (aws.amazon.com)\nhttps://aws.amazon.com/blogs/architecture/aderant-modernizes-analytics-data-pipeline-with-apache-iceberg-and-aws-lambda\n\n#TechNews #Developers",
+      "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1795181519.jpg"
     }
   ],
-  "last_posted_at": "2026-11-16T13:05:20.333871+00:00"
+  "last_posted_at": "2026-11-20T13:32:06.248670+00:00"
 }
