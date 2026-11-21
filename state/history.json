@@ -11,7 +11,8 @@
     "https://github.com/dragonflydb/dragonfly",
     "https://github.com/aman179102/real-time-analytics-pipeline",
     "https://github.com/aman179102/podvoice",
-    "https://aws.amazon.com/blogs/architecture/aderant-modernizes-analytics-data-pipeline-with-apache-iceberg-and-aws-lambda"
+    "https://aws.amazon.com/blogs/architecture/aderant-modernizes-analytics-data-pipeline-with-apache-iceberg-and-aws-lambda",
+    "https://openai.com/index/how-openai-performance-factory-keeps-chatgpt-fast"
   ],
   "posts": [
     {
@@ -126,7 +127,18 @@
       "posted_at": "2026-11-20T13:32:06.248670+00:00",
       "text": "Aderant modernized its analytics pipeline using Apache Iceberg and AWS Lambda, replacing 15-min batches with single-digit second CDC event processing.\n\nSource: AWS Architecture (aws.amazon.com)\nhttps://aws.amazon.com/blogs/architecture/aderant-modernizes-analytics-data-pipeline-with-apache-iceberg-and-aws-lambda\n\n#TechNews #Developers",
       "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1795181519.jpg"
+    },
+    {
+      "tweet_id": "telegram_dispatch",
+      "title": "How OpenAI’s Performance Factory keeps ChatGPT fast",
+      "url": "https://openai.com/index/how-openai-performance-factory-keeps-chatgpt-fast",
+      "category": "ai",
+      "format_kind": "news",
+      "quality_score": 8.5,
+      "posted_at": "2026-11-21T12:54:04.722746+00:00",
+      "text": "OpenAI's Performance Factory uses cloud Codex agents for autonomous regression workflows, leveraging adversarial reviews to catch false root causes.\n\nSource: OpenAI (openai.com)\nhttps://openai.com/index/how-openai-performance-factory-keeps-chatgpt-fast\n\n#AI #MachineLearning",
+      "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1795265638.jpg"
     }
   ],
-  "last_posted_at": "2026-11-20T13:32:06.248670+00:00"
+  "last_posted_at": "2026-11-21T12:54:04.722746+00:00"
 }
