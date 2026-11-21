@@ -12,7 +12,8 @@
     "https://github.com/aman179102/real-time-analytics-pipeline",
     "https://github.com/aman179102/podvoice",
     "https://aws.amazon.com/blogs/architecture/aderant-modernizes-analytics-data-pipeline-with-apache-iceberg-and-aws-lambda",
-    "https://openai.com/index/how-openai-performance-factory-keeps-chatgpt-fast"
+    "https://openai.com/index/how-openai-performance-factory-keeps-chatgpt-fast",
+    "https://aws.amazon.com/blogs/architecture/how-united-airlines-streams-database-changes-to-apache-iceberg-with-amazon-data-firehose"
   ],
   "posts": [
     {
@@ -138,7 +139,18 @@
       "posted_at": "2026-11-21T12:54:04.722746+00:00",
       "text": "OpenAI's Performance Factory uses cloud Codex agents for autonomous regression workflows, leveraging adversarial reviews to catch false root causes.\n\nSource: OpenAI (openai.com)\nhttps://openai.com/index/how-openai-performance-factory-keeps-chatgpt-fast\n\n#AI #MachineLearning",
       "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1795265638.jpg"
+    },
+    {
+      "tweet_id": "telegram_dispatch",
+      "title": "How United Airlines streams database changes to Apache Iceberg with Amazon Data Firehose",
+      "url": "https://aws.amazon.com/blogs/architecture/how-united-airlines-streams-database-changes-to-apache-iceberg-with-amazon-data-firehose",
+      "category": "architecture",
+      "format_kind": "news",
+      "quality_score": 8.5,
+      "posted_at": "2026-11-21T12:57:19.363446+00:00",
+      "text": "United scaled CDC from Aurora MySQL to Apache Iceberg using Kinesis, Lambda, and Data Firehose, achieving a 5x query latency boost.\n\nSource: AWS Architecture (aws.amazon.com)\nhttps://aws.amazon.com/blogs/architecture/how-united-airlines-streams-database-changes-to-apache-iceberg-with-amazon-data-firehose\n\n#TechNews #Developers",
+      "media_path": "/home/runner/work/x-automation/x-automation/output/tweet_1795265834.jpg"
     }
   ],
-  "last_posted_at": "2026-11-21T12:54:04.722746+00:00"
+  "last_posted_at": "2026-11-21T12:57:19.363446+00:00"
 }
